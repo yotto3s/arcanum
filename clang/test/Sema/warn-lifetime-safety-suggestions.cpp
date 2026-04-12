@@ -462,7 +462,8 @@ S forward(const MyObj &obj) { // expected-warning {{parameter in intra-TU functi
 namespace make_unique_suggestion {
 
 struct LifetimeBoundCtor {
-  LifetimeBoundCtor(const MyObj& obj [[clang::lifetimebound]]);
+  const MyObj& obj;
+  LifetimeBoundCtor(const MyObj& obj [[clang::lifetimebound]]) : obj(obj) {}
 };
 
 std::unique_ptr<LifetimeBoundCtor> create_target(const MyObj& obj) { // expected-warning {{parameter in intra-TU function should be marked [[clang::lifetimebound]]}}
@@ -478,3 +479,41 @@ void test_inference() {
   (void)ptr; // expected-note {{later used here}}
 }
 } // namespace make_unique_suggestion
+
+namespace capturing_constructor {
+struct A {
+  View v; // expected-note {{escapes to this field}}
+  A(const MyObj& obj) : v(obj) {} // expected-warning {{parameter in intra-TU function should be marked [[clang::lifetimebound]]}}
+};
+
+struct B {
+  const int* p; // expected-note {{escapes to this field}}
+  B(const int& r) : p(&r) {} // expected-warning {{parameter in intra-TU function should be marked [[clang::lifetimebound]]}}
+};
+
+struct C {
+  View v; // expected-note {{escapes to this field}}
+  C(View v_param) : v(v_param) {} // expected-warning {{parameter in intra-TU function should be marked [[clang::lifetimebound]]}}
+};
+
+struct D {
+  const int* p; // expected-note {{escapes to this field}}
+  D(const int* p_param) : p(p_param) {} // expected-warning {{parameter in intra-TU function should be marked [[clang::lifetimebound]]}}
+};
+} // namespace capturing_constructor
+
+namespace capturing_constructor_inference {
+struct B {
+  const MyObj* p; // expected-note {{escapes to this field}}
+  B(const MyObj& obj) : p(&obj) {} // expected-warning {{parameter in intra-TU function should be marked [[clang::lifetimebound]]}}
+};
+
+void test(B& b_out) {
+  {
+    MyObj obj;
+    B b(obj); // expected-warning {{object whose reference is captured does not live long enough}}
+    b_out = b;
+  } // expected-note {{destroyed here}}
+  (void)b_out; // expected-note {{later used here}}
+}
+} // namespace capturing_constructor_inference
