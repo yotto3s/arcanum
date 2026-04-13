@@ -19,8 +19,6 @@ jobs:
   refresh-cache:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
       - name: Touch ccache to reset its eviction timer
         uses: actions/cache/restore@v4
         with:
