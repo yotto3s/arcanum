@@ -1,0 +1,19 @@
+{
+  "name": "arcanum",
+  "build": { "dockerfile": "Dockerfile" },
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "remoteUser": "dev",
+  "updateRemoteUserUID": false,
+  "containerEnv": {
+    "HOST_USERNAME": "${localEnv:USER}"
+  },
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/dev/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude.json,target=/home/dev/.claude.json,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.gitconfig,target=/home/dev/.gitconfig,type=bind,readonly",
+    "source=${localEnv:HOME}/.ssh,target=/home/dev/.ssh,type=bind,readonly"
+  ],
+  "onCreateCommand": "sudo /usr/local/bin/fix-user.sh",
+  "postCreateCommand": "ros --version && clang --version && why3 --version && claude --version"
+}
