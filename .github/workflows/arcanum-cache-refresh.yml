@@ -1,0 +1,27 @@
+name: arcanum / ccache keep-alive
+
+# Reads the clang-CI ccache once a day so GitHub's 7-day inactivity eviction
+# never trips and PRs keep starting warm. The job does nothing else.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  refresh-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Touch ccache to reset its eviction timer
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache
+          key: arcanum-clang-ccache-keepalive
+          restore-keys: |
+            arcanum-clang-ccache-
