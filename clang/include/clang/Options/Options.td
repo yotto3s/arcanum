@@ -1679,6 +1679,13 @@ defm defer_ts : BoolFOption<"defer-ts",
   NegFlag<SetFalse>>,
   ShouldParseIf<!strconcat("!", cplusplus.KeyPath)>;
 
+// ECSL (Arcanum)
+defm ecsl : BoolFOption<"ecsl",
+  LangOpts<"ECSL">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+          "Enable ECSL annotations (Arcanum)">,
+  NegFlag<SetFalse>>;
+
 // C++ Coroutines
 defm coroutines : BoolFOption<"coroutines",
   LangOpts<"Coroutines">, Default<cpp20.KeyPath>,

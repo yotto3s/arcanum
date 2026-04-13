@@ -1,0 +1,53 @@
+name: arcanum / clang build & test
+
+on:
+  push:
+    branches: [arcanum]
+  pull_request:
+    branches: [arcanum]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/yotto3s/arcanum-base:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: arcanum-clang-ccache-${{ github.sha }}
+          restore-keys: |
+            arcanum-clang-ccache-
+
+      - name: Configure
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_MAXSIZE: 5G
+        run: |
+          cmake -S llvm -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_ENABLE_PROJECTS=clang \
+            -DLLVM_TARGETS_TO_BUILD=X86 \
+            -DLLVM_USE_LINKER=lld \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_CCACHE_BUILD=ON \
+            -DLLVM_ENABLE_ASSERTIONS=ON
+
+      - name: Build clang
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+        run: ninja -C build clang
+
+      - name: Run check-clang-driver
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+        run: ninja -C build check-clang-driver
