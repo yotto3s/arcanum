@@ -10,6 +10,7 @@
 #define LLVM_CLANG_FRONTEND_FRONTENDACTIONS_H
 
 #include "clang/Frontend/FrontendAction.h"
+#include "clang/ECSL/ECSLCommentHandler.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -193,6 +194,12 @@ protected:
 public:
   ~SyntaxOnlyAction() override;
   bool hasCodeCompletionSupport() const override { return true; }
+
+  bool BeginSourceFileAction(CompilerInstance &CI) override;
+  void EndSourceFileAction() override;
+
+private:
+  std::unique_ptr<ecsl::ECSLCommentHandler> m_ecsl_handler;
 };
 
 /// Dump information about the given module file, to be used for
