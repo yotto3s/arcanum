@@ -37,12 +37,13 @@ namespace {
 /// driver pipeline), we construct a small Preprocessor and feed it a buffer.
 ///
 /// We use a simple approach: register the handler through a CompilerInstance
-/// driven by SyntaxOnlyAction with -fecsl, then check the handler's output
-/// by subclassing.
+/// driven by a custom ASTFrontendAction, then drain the handler's buffer in
+/// EndSourceFileAction and expose the captured annotations for assertions.
 
 class HandlerCapturingAction : public ASTFrontendAction {
 public:
   std::vector<PendingAnnotation> Captured;
+  std::vector<PendingAnnotation> CapturedSecondDrain;
 
 protected:
   std::unique_ptr<ASTConsumer>
@@ -58,6 +59,7 @@ protected:
 
   void EndSourceFileAction() override {
     Captured = m_handler->takePending();
+    CapturedSecondDrain = m_handler->takePending();
     m_handler->unregisterFrom(getCompilerInstance().getPreprocessor());
     m_handler.reset();
     ASTFrontendAction::EndSourceFileAction();
@@ -137,8 +139,10 @@ TEST(ECSLCommentHandler, TakePendingClearsBuffer) {
   const char *Source = "/*@ requires x > 0; */ int f(int x) { return x; }\n";
   HandlerCapturingAction Action;
   ASSERT_TRUE(runAction(Action, Source));
-  // Captured is already drained by EndSourceFileAction via takePending().
+  // First drain should have captured the annotation.
   EXPECT_EQ(Action.Captured.size(), 1u);
+  // Second drain (immediately after the first) must return empty.
+  EXPECT_TRUE(Action.CapturedSecondDrain.empty());
 }
 
 } // namespace

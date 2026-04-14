@@ -25,7 +25,6 @@ static std::string extractCommentText(Preprocessor &PP, SourceRange Range) {
 }
 
 /// Strip the "/*@" prefix and " */" suffix from a block ECSL annotation.
-/// Continuation lines with a leading " * " have that prefix trimmed as well.
 static std::string stripBlockAnnotation(llvm::StringRef Text) {
   // Drop "/*@" prefix.
   if (Text.starts_with("/*@"))

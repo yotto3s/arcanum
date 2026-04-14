@@ -199,7 +199,7 @@ public:
   void EndSourceFileAction() override;
 
 private:
-  std::unique_ptr<ecsl::ECSLCommentHandler> m_ecsl_handler;
+  std::unique_ptr<ecsl::ECSLCommentHandler> ECSLHandler;
 };
 
 /// Dump information about the given module file, to be used for

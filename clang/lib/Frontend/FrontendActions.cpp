@@ -340,16 +340,16 @@ SyntaxOnlyAction::~SyntaxOnlyAction() {
 
 bool SyntaxOnlyAction::BeginSourceFileAction(CompilerInstance &CI) {
   if (CI.getLangOpts().ECSL) {
-    m_ecsl_handler = std::make_unique<ecsl::ECSLCommentHandler>();
-    m_ecsl_handler->registerWith(CI.getPreprocessor());
+    ECSLHandler = std::make_unique<ecsl::ECSLCommentHandler>();
+    ECSLHandler->registerWith(CI.getPreprocessor());
   }
   return ASTFrontendAction::BeginSourceFileAction(CI);
 }
 
 void SyntaxOnlyAction::EndSourceFileAction() {
-  if (m_ecsl_handler) {
-    m_ecsl_handler->unregisterFrom(getCompilerInstance().getPreprocessor());
-    m_ecsl_handler.reset();
+  if (ECSLHandler) {
+    ECSLHandler->unregisterFrom(getCompilerInstance().getPreprocessor());
+    ECSLHandler.reset();
   }
   ASTFrontendAction::EndSourceFileAction();
 }
