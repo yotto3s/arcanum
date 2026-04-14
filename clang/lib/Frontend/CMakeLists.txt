@@ -52,6 +52,7 @@ add_clang_library(clangFrontend
   clangAPINotes
   clangAST
   clangBasic
+  clangECSL
   clangOptions
   clangEdit
   clangLex

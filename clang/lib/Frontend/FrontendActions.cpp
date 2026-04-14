@@ -14,6 +14,7 @@
 #include "clang/Basic/LangStandard.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/ECSL/ECSLCommentHandler.h"
 #include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/MultiplexConsumer.h"
@@ -335,6 +336,22 @@ GenerateHeaderUnitAction::CreateOutputFile(CompilerInstance &CI,
 }
 
 SyntaxOnlyAction::~SyntaxOnlyAction() {
+}
+
+bool SyntaxOnlyAction::BeginSourceFileAction(CompilerInstance &CI) {
+  if (CI.getLangOpts().ECSL) {
+    ECSLHandler = std::make_unique<ecsl::ECSLCommentHandler>();
+    ECSLHandler->registerWith(CI.getPreprocessor());
+  }
+  return ASTFrontendAction::BeginSourceFileAction(CI);
+}
+
+void SyntaxOnlyAction::EndSourceFileAction() {
+  if (ECSLHandler) {
+    ECSLHandler->unregisterFrom(getCompilerInstance().getPreprocessor());
+    ECSLHandler.reset();
+  }
+  ASTFrontendAction::EndSourceFileAction();
 }
 
 std::unique_ptr<ASTConsumer>

@@ -1,0 +1,12 @@
+add_clang_unittest(ECSLTests
+  ECSLCommentHandlerTest.cpp
+  CLANG_LIBS
+  clangBasic
+  clangECSL
+  clangFrontend
+  clangLex
+  clangSerialization
+  clangTooling
+  LLVM_COMPONENTS
+  Support
+  )
