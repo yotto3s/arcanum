@@ -127,6 +127,17 @@ TEST(ECSLCommentHandler, MixedCommentsOnlyCapturesAnnotations) {
   EXPECT_NE(Action.Captured[1].Body.find("assigns"), std::string::npos);
 }
 
+TEST(ECSLCommentHandler, MultiLineBlockAnnotationIsCaptured) {
+  const char *Source = "/*@ requires x > 0;\n"
+                       "    ensures \\result > 0; */\n"
+                       "int f(int x) { return x; }\n";
+  HandlerCapturingAction Action;
+  ASSERT_TRUE(runAction(Action, Source));
+  ASSERT_EQ(Action.Captured.size(), 1u);
+  EXPECT_NE(Action.Captured[0].Body.find("requires x > 0;"), std::string::npos);
+  EXPECT_NE(Action.Captured[0].Body.find("ensures"), std::string::npos);
+}
+
 TEST(ECSLCommentHandler, SourceLocationIsRecorded) {
   const char *Source = "/*@ requires x > 0; */ int f(int x) { return x; }\n";
   HandlerCapturingAction Action;
