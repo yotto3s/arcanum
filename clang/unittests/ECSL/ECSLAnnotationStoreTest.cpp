@@ -11,6 +11,8 @@
 #include "clang/AST/Stmt.h"
 #include "gtest/gtest.h"
 #include <cstdint>
+#include <string>
+#include <vector>
 
 using namespace clang;
 using namespace clang::ecsl;
@@ -90,7 +92,7 @@ TEST(ECSLAnnotationStore, MultipleAddForDeclAccumulates) {
   EXPECT_EQ(Result[1].Body, "ensures \\result >= 0;");
 }
 
-TEST(ECSLAnnotationStore, DifferentKeysDontInterfer) {
+TEST(ECSLAnnotationStore, DifferentKeysDontInterfere) {
   ECSLAnnotationStore Store;
   const Decl *KeyA = fakeDecl(0x40);
   const Decl *KeyB = fakeDecl(0x50);

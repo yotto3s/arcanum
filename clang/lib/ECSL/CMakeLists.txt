@@ -7,7 +7,6 @@ add_clang_library(clangECSL
   ECSLCommentHandler.cpp
 
   LINK_LIBS
-  clangAST
   clangBasic
   clangLex
   )
