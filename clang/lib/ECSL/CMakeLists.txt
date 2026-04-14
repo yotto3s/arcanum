@@ -3,9 +3,11 @@ set(LLVM_LINK_COMPONENTS
   )
 
 add_clang_library(clangECSL
+  ECSLAnnotationStore.cpp
   ECSLCommentHandler.cpp
 
   LINK_LIBS
+  clangAST
   clangBasic
   clangLex
   )

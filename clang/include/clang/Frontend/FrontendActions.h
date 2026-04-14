@@ -10,6 +10,7 @@
 #define LLVM_CLANG_FRONTEND_FRONTENDACTIONS_H
 
 #include "clang/Frontend/FrontendAction.h"
+#include "clang/ECSL/ECSLAnnotationStore.h"
 #include "clang/ECSL/ECSLCommentHandler.h"
 #include <memory>
 #include <string>
@@ -199,6 +200,7 @@ public:
   void EndSourceFileAction() override;
 
 private:
+  std::unique_ptr<ecsl::ECSLAnnotationStore> ECSLStore;
   std::unique_ptr<ecsl::ECSLCommentHandler> ECSLHandler;
 };
 

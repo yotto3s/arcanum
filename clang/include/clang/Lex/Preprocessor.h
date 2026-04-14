@@ -66,6 +66,10 @@ template<unsigned InternalLen> class SmallString;
 
 namespace clang {
 
+namespace ecsl {
+class ECSLAnnotationStore;
+} // namespace ecsl
+
 class CodeCompletionHandler;
 class CommentHandler;
 class DirectoryEntry;
@@ -297,6 +301,9 @@ class Preprocessor {
   /// Tracks all of the comment handlers that the client registered
   /// with this preprocessor.
   std::vector<CommentHandler *> CommentHandlers;
+
+  /// ECSL annotation store, set by SyntaxOnlyAction when -fecsl is active.
+  ecsl::ECSLAnnotationStore *ECSLStore = nullptr;
 
   /// Empty line handler.
   EmptylineHandler *Emptyline = nullptr;
@@ -1597,6 +1604,17 @@ public:
   ///
   /// It is an error to remove a handler that has not been registered.
   void removeCommentHandler(CommentHandler *Handler);
+
+  /// Set the ECSL annotation store. Called by SyntaxOnlyAction when
+  /// -fecsl is active; pass null to detach.
+  void setECSLAnnotationStore(ecsl::ECSLAnnotationStore *Store) {
+    ECSLStore = Store;
+  }
+
+  /// Return the ECSL annotation store, or null if -fecsl is not active.
+  ecsl::ECSLAnnotationStore *getECSLAnnotationStore() const {
+    return ECSLStore;
+  }
 
   /// Set the code completion handler to the given object.
   void setCodeCompletionHandler(CodeCompletionHandler &Handler) {
