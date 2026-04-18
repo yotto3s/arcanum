@@ -239,3 +239,26 @@ TEST(ECSLDeclDispatch, MixedBlockAndLineAnnotationsAllAttach) {
   EXPECT_TRUE(OK);
   EXPECT_TRUE(InspectorRan);
 }
+
+TEST(ECSLDeclDispatch, MultilineAnnotationBodyPreservedOnFunctionDecl) {
+  bool InspectorRan = false;
+  bool OK = runWithECSL(
+      "/*@ requires x == 0;\n ensures y == 0;\n */\nint f(int x);",
+      [&](ASTContext &Ctx, ECSLAnnotationStore &Store) {
+        InspectorRan = true;
+        const FunctionDecl *FD = nullptr;
+        for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
+          if (auto *Fn = dyn_cast<FunctionDecl>(D);
+              Fn && Fn->getNameAsString() == "f") {
+            FD = Fn;
+            break;
+          }
+        }
+        ASSERT_NE(FD, nullptr) << "FunctionDecl 'f' not found";
+        auto Annots = Store.getForDecl(FD);
+        ASSERT_EQ(Annots.size(), 1u) << "Expected one annotation on 'f'";
+        EXPECT_EQ(Annots[0].Body, " requires x == 0;\n ensures y == 0;\n ");
+      });
+  EXPECT_TRUE(OK);
+  EXPECT_TRUE(InspectorRan);
+}
