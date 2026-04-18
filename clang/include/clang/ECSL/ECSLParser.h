@@ -10,10 +10,6 @@
 /// Declares parseECSLAnnotation(), the entry point for parsing a single ECSL
 /// annotation body into a processed form.
 ///
-/// In this PR the function is a stub that returns the input unchanged.
-/// Subsequent PRs will replace it with a real ECSL grammar parser that
-/// recognises \c requires, \c ensures, \c assigns, etc.
-///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_ECSL_ECSLPARSER_H
@@ -26,8 +22,8 @@ namespace ecsl {
 
 /// Parse one ECSL annotation.
 ///
-/// Currently a pass-through stub: returns \p PA unchanged.  Future versions
-/// will tokenise and parse the body into an ECSL AST fragment.
+/// \todo Replace with a real ECSL grammar parser that tokenises the body
+///       and produces an ECSL AST fragment.
 PendingAnnotation parseECSLAnnotation(PendingAnnotation PA);
 
 } // namespace ecsl

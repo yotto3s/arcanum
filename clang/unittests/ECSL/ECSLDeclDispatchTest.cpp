@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// Tests for the PR 4/5 parser dispatch: ECSL annotation comments buffered
-/// by ECSLCommentHandler are drained after ParseExternalDeclaration and
-/// stored in ECSLAnnotationStore keyed by the parsed Decl.
+/// Tests for ECSL annotation dispatch at Decl boundaries: annotation comments
+/// buffered by ECSLCommentHandler are drained after ParseExternalDeclaration
+/// and stored in ECSLAnnotationStore keyed by the parsed Decl.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -186,6 +186,56 @@ TEST(ECSLDeclDispatch, NoCrashWhenNoAnnotations) {
                           for (Decl *D : Ctx.getTranslationUnitDecl()->decls())
                             EXPECT_TRUE(Store.getForDecl(D).empty());
                         });
+  EXPECT_TRUE(OK);
+  EXPECT_TRUE(InspectorRan);
+}
+
+TEST(ECSLDeclDispatch, LineAnnotationAttachesToFunctionDecl) {
+  bool InspectorRan = false;
+  bool OK =
+      runWithECSL("//@ requires x > 0;\nint g(int x);",
+                  [&](ASTContext &Ctx, ECSLAnnotationStore &Store) {
+                    InspectorRan = true;
+                    const FunctionDecl *FD = nullptr;
+                    for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
+                      if (auto *Fn = dyn_cast<FunctionDecl>(D);
+                          Fn && Fn->getNameAsString() == "g") {
+                        FD = Fn;
+                        break;
+                      }
+                    }
+                    ASSERT_NE(FD, nullptr) << "FunctionDecl 'g' not found";
+                    auto Annots = Store.getForDecl(FD);
+                    ASSERT_EQ(Annots.size(), 1u)
+                        << "Expected one line annotation on 'g'";
+                    EXPECT_EQ(Annots[0].Body, " requires x > 0;");
+                  });
+  EXPECT_TRUE(OK);
+  EXPECT_TRUE(InspectorRan);
+}
+
+TEST(ECSLDeclDispatch, MixedBlockAndLineAnnotationsAllAttach) {
+  bool InspectorRan = false;
+  bool OK =
+      runWithECSL("/*@ requires x >= 0; */\n//@ ensures \\result >= 0;\nint "
+                  "m(int x);",
+                  [&](ASTContext &Ctx, ECSLAnnotationStore &Store) {
+                    InspectorRan = true;
+                    const FunctionDecl *FD = nullptr;
+                    for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
+                      if (auto *Fn = dyn_cast<FunctionDecl>(D);
+                          Fn && Fn->getNameAsString() == "m") {
+                        FD = Fn;
+                        break;
+                      }
+                    }
+                    ASSERT_NE(FD, nullptr);
+                    auto Annots = Store.getForDecl(FD);
+                    ASSERT_EQ(Annots.size(), 2u)
+                        << "Expected two annotations on 'm'";
+                    EXPECT_EQ(Annots[0].Body, " requires x >= 0; ");
+                    EXPECT_EQ(Annots[1].Body, " ensures \\result >= 0;");
+                  });
   EXPECT_TRUE(OK);
   EXPECT_TRUE(InspectorRan);
 }
