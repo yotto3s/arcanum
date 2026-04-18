@@ -160,6 +160,9 @@ jobs:
           test -f "${BUILD_DIR}/compile_commands.json" || {
             echo "Missing ${BUILD_DIR}/compile_commands.json"; exit 1; }
 
+      - name: Generate TableGen headers
+        run: ninja -C ${BUILD_DIR} clang-tablegen-targets
+
       - name: Run clang-tidy-diff vs tag
         shell: bash
         run: |

@@ -9,9 +9,9 @@
 #ifndef LLVM_CLANG_FRONTEND_FRONTENDACTIONS_H
 #define LLVM_CLANG_FRONTEND_FRONTENDACTIONS_H
 
-#include "clang/Frontend/FrontendAction.h"
 #include "clang/ECSL/ECSLAnnotationStore.h"
 #include "clang/ECSL/ECSLCommentHandler.h"
+#include "clang/Frontend/FrontendAction.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -90,9 +90,7 @@ protected:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override;
 
-  TranslationUnitKind getTranslationUnitKind() override {
-    return TU_Prefix;
-  }
+  TranslationUnitKind getTranslationUnitKind() override { return TU_Prefix; }
 
   bool hasASTFileSupport() const override { return false; }
 
@@ -341,6 +339,6 @@ public:
   HLSLFrontendAction(std::unique_ptr<FrontendAction> WrappedAction);
 };
 
-}  // end namespace clang
+} // end namespace clang
 
 #endif
