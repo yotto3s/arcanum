@@ -2,6 +2,7 @@ add_clang_unittest(ECSLTests
   ECSLAnnotationStoreTest.cpp
   ECSLCommentHandlerTest.cpp
   ECSLDeclDispatchTest.cpp
+  ECSLStmtDispatchTest.cpp
   CLANG_LIBS
   clangAST
   clangBasic
