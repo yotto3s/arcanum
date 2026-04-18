@@ -70,7 +70,7 @@ public:
 
 protected:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
-                                                  StringRef) override {
+                                                 StringRef) override {
     return std::make_unique<ECSLDispatchConsumer>(CI, m_inspector);
   }
 
@@ -92,24 +92,25 @@ static bool runWithECSL(StringRef Code, StoreInspector Inspector) {
 
 TEST(ECSLDeclDispatch, SingleAnnotationAttachesToFunctionDecl) {
   bool InspectorRan = false;
-  bool OK = runWithECSL(
-      "/*@ requires x > 0; */\nint f(int x);",
-      [&](ASTContext &Ctx, ECSLAnnotationStore &Store) {
-        InspectorRan = true;
-        // Find the FunctionDecl for 'f'.
-        const FunctionDecl *FD = nullptr;
-        for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
-          if (auto *Fn = dyn_cast<FunctionDecl>(D);
-              Fn && Fn->getNameAsString() == "f") {
-            FD = Fn;
-            break;
-          }
-        }
-        ASSERT_NE(FD, nullptr) << "FunctionDecl 'f' not found";
-        auto Annots = Store.getForDecl(FD);
-        ASSERT_EQ(Annots.size(), 1u) << "Expected one annotation on 'f'";
-        EXPECT_EQ(Annots[0].Body, " requires x > 0; ");
-      });
+  bool OK =
+      runWithECSL("/*@ requires x > 0; */\nint f(int x);",
+                  [&](ASTContext &Ctx, ECSLAnnotationStore &Store) {
+                    InspectorRan = true;
+                    // Find the FunctionDecl for 'f'.
+                    const FunctionDecl *FD = nullptr;
+                    for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
+                      if (auto *Fn = dyn_cast<FunctionDecl>(D);
+                          Fn && Fn->getNameAsString() == "f") {
+                        FD = Fn;
+                        break;
+                      }
+                    }
+                    ASSERT_NE(FD, nullptr) << "FunctionDecl 'f' not found";
+                    auto Annots = Store.getForDecl(FD);
+                    ASSERT_EQ(Annots.size(), 1u)
+                        << "Expected one annotation on 'f'";
+                    EXPECT_EQ(Annots[0].Body, " requires x > 0; ");
+                  });
   EXPECT_TRUE(OK);
   EXPECT_TRUE(InspectorRan);
 }
@@ -140,15 +141,15 @@ TEST(ECSLDeclDispatch, MultipleAnnotationsAllAttach) {
 
 TEST(ECSLDeclDispatch, PlainCommentProducesEmptyStore) {
   bool InspectorRan = false;
-  bool OK = runWithECSL(
-      "/* plain comment */\nint p(void);",
-      [&](ASTContext &Ctx, ECSLAnnotationStore &Store) {
-        InspectorRan = true;
-        for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
-          EXPECT_TRUE(Store.getForDecl(D).empty())
-              << "No annotations expected for plain comment";
-        }
-      });
+  bool OK =
+      runWithECSL("/* plain comment */\nint p(void);",
+                  [&](ASTContext &Ctx, ECSLAnnotationStore &Store) {
+                    InspectorRan = true;
+                    for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
+                      EXPECT_TRUE(Store.getForDecl(D).empty())
+                          << "No annotations expected for plain comment";
+                    }
+                  });
   EXPECT_TRUE(OK);
   EXPECT_TRUE(InspectorRan);
 }
@@ -163,8 +164,7 @@ TEST(ECSLDeclDispatch, AnnotationBeforeTypedefAttaches) {
         const TypedefDecl *TD = nullptr;
         for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
           if (auto *TDCandidate = dyn_cast<TypedefDecl>(D);
-              TDCandidate &&
-              TDCandidate->getNameAsString() == "MyInt") {
+              TDCandidate && TDCandidate->getNameAsString() == "MyInt") {
             TD = TDCandidate;
             break;
           }
@@ -180,13 +180,12 @@ TEST(ECSLDeclDispatch, AnnotationBeforeTypedefAttaches) {
 
 TEST(ECSLDeclDispatch, NoCrashWhenNoAnnotations) {
   bool InspectorRan = false;
-  bool OK = runWithECSL(
-      "int bare(void);\nint also_bare(int x);",
-      [&](ASTContext &Ctx, ECSLAnnotationStore &Store) {
-        InspectorRan = true;
-        for (Decl *D : Ctx.getTranslationUnitDecl()->decls())
-          EXPECT_TRUE(Store.getForDecl(D).empty());
-      });
+  bool OK = runWithECSL("int bare(void);\nint also_bare(int x);",
+                        [&](ASTContext &Ctx, ECSLAnnotationStore &Store) {
+                          InspectorRan = true;
+                          for (Decl *D : Ctx.getTranslationUnitDecl()->decls())
+                            EXPECT_TRUE(Store.getForDecl(D).empty());
+                        });
   EXPECT_TRUE(OK);
   EXPECT_TRUE(InspectorRan);
 }
