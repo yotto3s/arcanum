@@ -1,12 +1,14 @@
 add_clang_unittest(ECSLTests
   ECSLAnnotationStoreTest.cpp
   ECSLCommentHandlerTest.cpp
+  ECSLDeclDispatchTest.cpp
   CLANG_LIBS
   clangAST
   clangBasic
   clangECSL
   clangFrontend
   clangLex
+  clangParse
   clangSerialization
   clangTooling
   LLVM_COMPONENTS

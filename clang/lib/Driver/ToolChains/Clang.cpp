@@ -6972,6 +6972,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // Forward OpenACC options to -cc1
   RenderOpenACCOptions(D, Args, CmdArgs, InputType);
 
+  // Forward ECSL (Arcanum) options to -cc1.
+  if (Args.hasFlag(options::OPT_fecsl, options::OPT_fno_ecsl, false))
+    CmdArgs.push_back("-fecsl");
+
   if (IsHIP) {
     if (Args.hasFlag(options::OPT_fhip_new_launch_api,
                      options::OPT_fno_hip_new_launch_api, true))

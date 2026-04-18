@@ -30,6 +30,7 @@ add_clang_library(clangParse
   LINK_LIBS
   clangAST
   clangBasic
+  clangECSL
   clangLex
   clangSema
 
