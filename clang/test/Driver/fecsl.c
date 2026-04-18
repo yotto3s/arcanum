@@ -16,3 +16,6 @@
 
 // cc1 marshals -fecsl into LangOpts.ECSL; verify cc1 accepts it.
 // RUN: %clang -cc1 -fecsl -fsyntax-only %s
+
+// Provide a declaration so this TU is valid C (required by ISO C).
+int ecsl_driver_test_dummy;
