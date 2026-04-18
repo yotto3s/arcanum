@@ -208,3 +208,21 @@ TEST(ECSLStmtDispatch, AnnotationNotAttachedToDeclStmt) {
   EXPECT_TRUE(OK);
   EXPECT_TRUE(InspectorRan);
 }
+
+TEST(ECSLStmtDispatch, MultilineAnnotationBodyPreservedOnVarDecl) {
+  bool InspectorRan = false;
+  bool OK = runWithECSL(
+      "void f(void) { /*@ requires x == 0;\n ensures y == 0;\n */\nint x = 1; "
+      "}",
+      [&](ASTContext &Ctx, ECSLAnnotationStore &Store) {
+        InspectorRan = true;
+        const VarDecl *VD = findLocalVar(Ctx, "f", "x");
+        ASSERT_NE(VD, nullptr) << "VarDecl 'x' not found in 'f'";
+        auto Annots = Store.getForDecl(VD);
+        ASSERT_EQ(Annots.size(), 1u)
+            << "Expected one multiline annotation on 'x'";
+        EXPECT_EQ(Annots[0].Body, " requires x == 0;\n ensures y == 0;\n ");
+      });
+  EXPECT_TRUE(OK);
+  EXPECT_TRUE(InspectorRan);
+}
