@@ -55,3 +55,131 @@ jobs:
         env:
           CCACHE_DIR: ${{ github.workspace }}/.ccache
         run: ninja -C build check-clang-driver
+
+  format:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/arcanum-base:latest
+    env:
+      BASE_TAG: llvmorg-22.1.3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+
+      - name: Mark working directory as safe for git
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Fetch tags
+        run: |
+          git fetch --tags --force
+          git show-ref --tags "${BASE_TAG}" || {
+            echo "Tag ${BASE_TAG} not found"; exit 1; }
+
+      - name: Run clang-format-diff vs tag
+        shell: bash
+        run: |
+          set -o pipefail
+          git diff -U0 "${BASE_TAG}"...HEAD \
+            -- ':(exclude)third_party/**' \
+               '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.td' \
+          | python3 clang/tools/clang-format/clang-format-diff.py \
+              -p1 -binary clang-format \
+          | tee clang-format.patch
+
+      - name: Fail if formatting is needed
+        run: |
+          if [ -s clang-format.patch ]; then
+            echo "clang-format would reformat some lines."
+            exit 1
+          fi
+
+      - name: Upload format patch
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-format.patch
+          path: clang-format.patch
+
+  lint:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/arcanum-base:latest
+    env:
+      BASE_TAG: llvmorg-22.1.3
+      BUILD_DIR: build-tidy
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install clang-tidy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy
+
+      - name: Mark working directory as safe for git
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Fetch tags
+        run: |
+          git fetch --tags --force
+          git show-ref --tags "${BASE_TAG}" || {
+            echo "Tag ${BASE_TAG} not found"; exit 1; }
+
+      - name: Configure
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+          CCACHE_MAXSIZE: 5G
+        run: |
+          cmake -S llvm -B ${BUILD_DIR} -G Ninja \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_ENABLE_PROJECTS=clang \
+            -DLLVM_TARGETS_TO_BUILD=X86 \
+            -DLLVM_USE_LINKER=lld \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_CCACHE_BUILD=ON \
+            -DLLVM_ENABLE_ASSERTIONS=ON
+
+      - name: Verify compile_commands.json
+        run: |
+          test -f "${BUILD_DIR}/compile_commands.json" || {
+            echo "Missing ${BUILD_DIR}/compile_commands.json"; exit 1; }
+
+      - name: Run clang-tidy-diff vs tag
+        shell: bash
+        run: |
+          set -o pipefail
+          git diff -U0 "${BASE_TAG}"...HEAD \
+            -- ':(exclude)third_party/**' \
+               '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' \
+          | python3 clang-tools-extra/clang-tidy/tool/clang-tidy-diff.py \
+              -p1 \
+              -path "${BUILD_DIR}" \
+              -export-fixes clang-tidy-fixes.yml
+
+          if [ -s clang-tidy-fixes.yml ]; then
+            echo "clang-tidy reported issues on changed code."
+            exit 1
+          fi
+
+      - name: Upload clang-tidy fixes
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clang-tidy-fixes.yml
+          path: clang-tidy-fixes.yml

@@ -339,17 +339,25 @@ SyntaxOnlyAction::~SyntaxOnlyAction() {
 }
 
 bool SyntaxOnlyAction::BeginSourceFileAction(CompilerInstance &CI) {
+  if (!ASTFrontendAction::BeginSourceFileAction(CI))
+    return false;
   if (CI.getLangOpts().ECSL) {
+    ECSLStore = std::make_unique<ecsl::ECSLAnnotationStore>();
+    CI.getPreprocessor().setECSLAnnotationStore(ECSLStore.get());
     ECSLHandler = std::make_unique<ecsl::ECSLCommentHandler>();
     ECSLHandler->registerWith(CI.getPreprocessor());
   }
-  return ASTFrontendAction::BeginSourceFileAction(CI);
+  return true;
 }
 
 void SyntaxOnlyAction::EndSourceFileAction() {
   if (ECSLHandler) {
     ECSLHandler->unregisterFrom(getCompilerInstance().getPreprocessor());
     ECSLHandler.reset();
+  }
+  if (ECSLStore) {
+    getCompilerInstance().getPreprocessor().setECSLAnnotationStore(nullptr);
+    ECSLStore.reset();
   }
   ASTFrontendAction::EndSourceFileAction();
 }
