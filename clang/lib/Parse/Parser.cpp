@@ -17,6 +17,9 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Basic/DiagnosticParse.h"
 #include "clang/Basic/StackExhaustionHandler.h"
+#include "clang/ECSL/ECSLAnnotationStore.h"
+#include "clang/ECSL/ECSLCommentHandler.h"
+#include "clang/ECSL/ECSLParser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
@@ -744,6 +747,22 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
   // An empty Result might mean a line with ';' or some parsing error, ignore
   // it.
   if (Result) {
+    // Drain any ECSL annotation comments buffered before this declaration and
+    // attach them to every Decl in the group.
+    if (auto *Handler = PP.getECSLCommentHandler()) {
+      if (auto *Store = PP.getECSLAnnotationStore()) {
+        auto Pending = Handler->takePending();
+        if (!Pending.empty()) {
+          std::vector<ecsl::PendingAnnotation> Parsed;
+          Parsed.reserve(Pending.size());
+          for (auto &PA : Pending)
+            Parsed.push_back(ecsl::parseECSLAnnotation(std::move(PA)));
+          for (Decl *D : Result.get())
+            Store->addForDecl(D, Parsed);
+        }
+      }
+    }
+
     if (ImportState == Sema::ModuleImportState::FirstDecl)
       // First decl was not modular.
       ImportState = Sema::ModuleImportState::NotACXX20Module;

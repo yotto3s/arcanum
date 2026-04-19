@@ -68,6 +68,7 @@ namespace clang {
 
 namespace ecsl {
 class ECSLAnnotationStore;
+class ECSLCommentHandler;
 } // namespace ecsl
 
 class CodeCompletionHandler;
@@ -304,6 +305,9 @@ class Preprocessor {
 
   /// ECSL annotation store, set by SyntaxOnlyAction when -fecsl is active.
   ecsl::ECSLAnnotationStore *ECSLStore = nullptr;
+
+  /// ECSL comment handler, set by SyntaxOnlyAction when -fecsl is active.
+  ecsl::ECSLCommentHandler *ECSLHandler = nullptr;
 
   /// Empty line handler.
   EmptylineHandler *Emptyline = nullptr;
@@ -1614,6 +1618,17 @@ public:
   /// Return the ECSL annotation store, or null if -fecsl is not active.
   ecsl::ECSLAnnotationStore *getECSLAnnotationStore() const {
     return ECSLStore;
+  }
+
+  /// Set the ECSL comment handler. Called by SyntaxOnlyAction when
+  /// -fecsl is active; pass null to detach.
+  void setECSLCommentHandler(ecsl::ECSLCommentHandler *Handler) {
+    ECSLHandler = Handler;
+  }
+
+  /// Return the ECSL comment handler, or null if -fecsl is not active.
+  ecsl::ECSLCommentHandler *getECSLCommentHandler() const {
+    return ECSLHandler;
   }
 
   /// Set the code completion handler to the given object.

@@ -18,8 +18,9 @@ using namespace clang;
 using namespace clang::ecsl;
 
 // ---------------------------------------------------------------------------
-// Helpers: manufacture fake opaque keys without instantiating a CompilerInstance.
-// DenseMap uses pointer identity only; no Decl/Stmt methods are called.
+// Helpers: manufacture fake opaque keys without instantiating a
+// CompilerInstance. DenseMap uses pointer identity only; no Decl/Stmt methods
+// are called.
 // ---------------------------------------------------------------------------
 
 static const Decl *fakeDecl(uintptr_t Id) {

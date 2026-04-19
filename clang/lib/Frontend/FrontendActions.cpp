@@ -346,13 +346,16 @@ bool SyntaxOnlyAction::BeginSourceFileAction(CompilerInstance &CI) {
     CI.getPreprocessor().setECSLAnnotationStore(ECSLStore.get());
     ECSLHandler = std::make_unique<ecsl::ECSLCommentHandler>();
     ECSLHandler->registerWith(CI.getPreprocessor());
+    CI.getPreprocessor().setECSLCommentHandler(ECSLHandler.get());
   }
   return true;
 }
 
 void SyntaxOnlyAction::EndSourceFileAction() {
   if (ECSLHandler) {
-    ECSLHandler->unregisterFrom(getCompilerInstance().getPreprocessor());
+    Preprocessor &PP = getCompilerInstance().getPreprocessor();
+    PP.setECSLCommentHandler(nullptr);
+    ECSLHandler->unregisterFrom(PP);
     ECSLHandler.reset();
   }
   if (ECSLStore) {

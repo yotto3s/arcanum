@@ -1,4 +1,5 @@
-//===- unittests/ECSL/ECSLCommentHandlerTest.cpp - ECSLCommentHandler tests ===//
+//===- unittests/ECSL/ECSLCommentHandlerTest.cpp - ECSLCommentHandler tests
+//===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -46,8 +47,8 @@ public:
   std::vector<PendingAnnotation> CapturedSecondDrain;
 
 protected:
-  std::unique_ptr<ASTConsumer>
-  CreateASTConsumer(CompilerInstance &, StringRef) override {
+  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &,
+                                                 StringRef) override {
     return std::make_unique<ASTConsumer>();
   }
 
@@ -73,8 +74,7 @@ private:
 static bool runAction(HandlerCapturingAction &Action, const char *Source) {
   auto Invocation = std::make_shared<CompilerInvocation>();
   Invocation->getPreprocessorOpts().addRemappedFile(
-      "input.c",
-      llvm::MemoryBuffer::getMemBuffer(Source, "input.c").release());
+      "input.c", llvm::MemoryBuffer::getMemBuffer(Source, "input.c").release());
   Invocation->getFrontendOpts().Inputs.push_back(
       FrontendInputFile("input.c", Language::C));
   Invocation->getFrontendOpts().ProgramAction = frontend::ParseSyntaxOnly;
