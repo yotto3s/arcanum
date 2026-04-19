@@ -236,19 +236,20 @@ Retry:
         DeclStart = GNUAttrs.Range.getBegin();
       // Drain any ECSL annotation comments buffered before this block-level
       // declaration and attach them to the inner Decl(s) (e.g. VarDecl) before
-      // ActOnDeclStmt wraps them into a DeclStmt.
-      if (Decl) {
-        if (auto *Handler = PP.getECSLCommentHandler()) {
+      // ActOnDeclStmt wraps them into a DeclStmt.  Always consume the pending
+      // annotations even when ParseDeclaration() error-recovered to an empty
+      // DeclGroup, so they cannot leak across the statement boundary and attach
+      // to a later unrelated construct.
+      if (auto *Handler = PP.getECSLCommentHandler()) {
+        auto Pending = Handler->takePending();
+        if (Decl && !Pending.empty()) {
           if (auto *Store = PP.getECSLAnnotationStore()) {
-            auto Pending = Handler->takePending();
-            if (!Pending.empty()) {
-              std::vector<ecsl::PendingAnnotation> Parsed;
-              Parsed.reserve(Pending.size());
-              for (auto &PA : Pending)
-                Parsed.push_back(ecsl::parseECSLAnnotation(std::move(PA)));
-              for (auto *D : Decl.get())
-                Store->addForDecl(D, Parsed);
-            }
+            std::vector<ecsl::PendingAnnotation> Parsed;
+            Parsed.reserve(Pending.size());
+            for (auto &PA : Pending)
+              Parsed.push_back(ecsl::parseECSLAnnotation(std::move(PA)));
+            for (auto *D : Decl.get())
+              Store->addForDecl(D, Parsed);
           }
         }
       }

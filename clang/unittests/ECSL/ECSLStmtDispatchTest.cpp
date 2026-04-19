@@ -86,7 +86,7 @@ static const VarDecl *findLocalVar(ASTContext &Ctx, StringRef FuncName,
                                    StringRef VarName) {
   for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
     auto *FD = dyn_cast<FunctionDecl>(D);
-    if (!FD || FD->getNameAsString() != FuncName || !FD->hasBody())
+    if (!FD || FD->getName() != FuncName || !FD->hasBody())
       continue;
     auto *Body = dyn_cast<CompoundStmt>(FD->getBody());
     if (!Body)
@@ -97,7 +97,7 @@ static const VarDecl *findLocalVar(ASTContext &Ctx, StringRef FuncName,
         continue;
       for (auto *Decl : DS->decls()) {
         auto *VD = dyn_cast<VarDecl>(Decl);
-        if (VD && VD->getNameAsString() == VarName)
+        if (VD && VD->getName() == VarName)
           return VD;
       }
     }
