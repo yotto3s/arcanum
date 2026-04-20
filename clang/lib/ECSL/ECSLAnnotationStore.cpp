@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/ECSL/ECSLAnnotationStore.h"
+#include "clang/AST/Decl.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/Preprocessor.h"
 #include <iterator>
@@ -46,4 +47,17 @@ ECSLAnnotationStore::getForStmt(const Stmt *S) const {
 
 ECSLAnnotationStore *ECSLAnnotationStore::get(CompilerInstance &CI) {
   return CI.getPreprocessor().getECSLAnnotationStore();
+}
+
+void ECSLAnnotationStore::addContract(const FunctionDecl *FD,
+                                      ECSLFunctionContract Contract) {
+  FuncContracts[FD] = std::move(Contract);
+}
+
+const ECSLFunctionContract *
+ECSLAnnotationStore::getContract(const FunctionDecl *FD) const {
+  auto It = FuncContracts.find(FD);
+  if (It == FuncContracts.end())
+    return nullptr;
+  return &It->second;
 }

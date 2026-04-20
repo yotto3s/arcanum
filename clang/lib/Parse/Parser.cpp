@@ -14,6 +14,7 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTLambda.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Basic/DiagnosticParse.h"
 #include "clang/Basic/StackExhaustionHandler.h"
@@ -760,8 +761,34 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result,
         Parsed.reserve(Pending.size());
         for (auto &PA : Pending)
           Parsed.push_back(ecsl::parseECSLAnnotation(std::move(PA)));
-        for (Decl *D : Result.get())
+        for (Decl *D : Result.get()) {
           Store->addForDecl(D, Parsed);
+          // If this declaration is a function, parse the annotations into a
+          // typed ECSLFunctionContract and store it alongside the raw entries.
+          if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+            ecsl::ECSLParser Parser;
+            std::optional<ecsl::ECSLFunctionContract> Contract;
+            for (const auto &Ann : Parsed) {
+              auto C = Parser.ParseFunctionContract(Ann.Body, Ann.Loc);
+              if (C) {
+                if (!Contract) {
+                  Contract = std::move(C);
+                } else {
+                  // Merge additional annotations into the running contract.
+                  for (auto &R : C->m_requires)
+                    Contract->m_requires.push_back(std::move(R));
+                  for (auto &E : C->m_ensures)
+                    Contract->m_ensures.push_back(std::move(E));
+                  if (C->m_assigns_nothing)
+                    Contract->m_assigns_nothing =
+                        std::move(C->m_assigns_nothing);
+                }
+              }
+            }
+            if (Contract)
+              Store->addContract(FD, std::move(*Contract));
+          }
+        }
       }
     }
   }
