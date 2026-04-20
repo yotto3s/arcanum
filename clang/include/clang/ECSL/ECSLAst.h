@@ -34,9 +34,9 @@ namespace ecsl {
 
 /// Clause modifier applied to requires/ensures clauses.
 enum class ClauseModifier {
-  None,   ///< No modifier (default).
-  Check,  ///< check: verify the clause, do not assume it (M3).
-  Admit,  ///< admit: assume without verification (M3).
+  None,  ///< No modifier (default).
+  Check, ///< check: verify the clause, do not assume it (M3).
+  Admit, ///< admit: assume without verification (M3).
 };
 
 /// Relational operator used in an ECSLPred::Rel comparison.
@@ -96,19 +96,25 @@ struct ECSLTerm {
 /// The tree is heap-allocated via unique_ptr to support arbitrary nesting
 /// depth. Move-only due to unique_ptr members; never copy a predicate tree.
 ///
-/// M1 kinds: True, False, Rel, And, Or, Not.
+/// M1 kinds: True, False, CExpr, Rel, And, Or, Not.
 struct ECSLPred {
   enum class Kind {
     True,  ///< Logical true (\true, or predicate that is trivially satisfied).
     False, ///< Logical false (\false).
-    Rel,   ///< Relational comparison: m_lhs m_rel_op m_rhs.
-    And,   ///< Conjunction: m_left && m_right.
-    Or,    ///< Disjunction: m_left || m_right.
-    Not,   ///< Negation: !m_operand.
+    /// A delegated C/C++ expression used as a boolean predicate (e.g. a bare
+    /// identifier or function call without an explicit relational operator).
+    CExpr,
+    Rel, ///< Relational comparison: m_lhs m_rel_op m_rhs.
+    And, ///< Conjunction: m_left && m_right.
+    Or,  ///< Disjunction: m_left || m_right.
+    Not, ///< Negation: !m_operand.
   };
 
   Kind m_kind = Kind::True;
   SourceRange m_loc;
+
+  /// Clang Expr* used as a boolean predicate. Valid when m_kind == Kind::CExpr.
+  clang::Expr *m_c_pred_expr = nullptr;
 
   /// Relational operator. Valid when m_kind == Kind::Rel.
   RelOp m_rel_op = RelOp::Eq;
@@ -144,8 +150,8 @@ struct ECSLPred {
     return P;
   }
 
-  static std::unique_ptr<ECSLPred> MakeRel(ECSLTerm Lhs, RelOp Op,
-                                            ECSLTerm Rhs, SourceRange Loc) {
+  static std::unique_ptr<ECSLPred> MakeRel(ECSLTerm Lhs, RelOp Op, ECSLTerm Rhs,
+                                           SourceRange Loc) {
     auto P = std::make_unique<ECSLPred>();
     P->m_kind = Kind::Rel;
     P->m_rel_op = Op;
@@ -156,8 +162,8 @@ struct ECSLPred {
   }
 
   static std::unique_ptr<ECSLPred> MakeAnd(std::unique_ptr<ECSLPred> Left,
-                                            std::unique_ptr<ECSLPred> Right,
-                                            SourceRange Loc) {
+                                           std::unique_ptr<ECSLPred> Right,
+                                           SourceRange Loc) {
     auto P = std::make_unique<ECSLPred>();
     P->m_kind = Kind::And;
     P->m_left = std::move(Left);
@@ -167,8 +173,8 @@ struct ECSLPred {
   }
 
   static std::unique_ptr<ECSLPred> MakeOr(std::unique_ptr<ECSLPred> Left,
-                                           std::unique_ptr<ECSLPred> Right,
-                                           SourceRange Loc) {
+                                          std::unique_ptr<ECSLPred> Right,
+                                          SourceRange Loc) {
     auto P = std::make_unique<ECSLPred>();
     P->m_kind = Kind::Or;
     P->m_left = std::move(Left);
@@ -178,10 +184,20 @@ struct ECSLPred {
   }
 
   static std::unique_ptr<ECSLPred> MakeNot(std::unique_ptr<ECSLPred> Operand,
-                                            SourceRange Loc) {
+                                           SourceRange Loc) {
     auto P = std::make_unique<ECSLPred>();
     P->m_kind = Kind::Not;
     P->m_operand = std::move(Operand);
+    P->m_loc = Loc;
+    return P;
+  }
+
+  /// Create a CExpr predicate (a delegated C/C++ expression used as a boolean).
+  static std::unique_ptr<ECSLPred> MakeCExprPred(clang::Expr *E,
+                                                 SourceRange Loc) {
+    auto P = std::make_unique<ECSLPred>();
+    P->m_kind = Kind::CExpr;
+    P->m_c_pred_expr = E;
     P->m_loc = Loc;
     return P;
   }
