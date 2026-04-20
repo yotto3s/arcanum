@@ -2593,27 +2593,27 @@ StmtResult Parser::ParseCXXTryBlockCommon(SourceLocation TryLoc, bool FnTry) {
 
     return Actions.ActOnSEHTryBlock(true /* IsCXXTry */, TryLoc, TryBlock.get(),
                                     Handler.get());
-  } else {
-    StmtVector Handlers;
-
-    // C++11 attributes can't appear here, despite this context seeming
-    // statement-like.
-    DiagnoseAndSkipCXX11Attributes();
-
-    if (Tok.isNot(tok::kw_catch))
-      return StmtError(Diag(Tok, diag::err_expected_catch));
-    while (Tok.is(tok::kw_catch)) {
-      StmtResult Handler(ParseCXXCatchBlock(FnTry));
-      if (!Handler.isInvalid())
-        Handlers.push_back(Handler.get());
-    }
-    // Don't bother creating the full statement if we don't have any usable
-    // handlers.
-    if (Handlers.empty())
-      return StmtError();
-
-    return Actions.ActOnCXXTryBlock(TryLoc, TryBlock.get(), Handlers);
   }
+
+  StmtVector Handlers;
+
+  // C++11 attributes can't appear here, despite this context seeming
+  // statement-like.
+  DiagnoseAndSkipCXX11Attributes();
+
+  if (Tok.isNot(tok::kw_catch))
+    return StmtError(Diag(Tok, diag::err_expected_catch));
+  while (Tok.is(tok::kw_catch)) {
+    StmtResult Handler(ParseCXXCatchBlock(FnTry));
+    if (!Handler.isInvalid())
+      Handlers.push_back(Handler.get());
+  }
+  // Don't bother creating the full statement if we don't have any usable
+  // handlers.
+  if (Handlers.empty())
+    return StmtError();
+
+  return Actions.ActOnCXXTryBlock(TryLoc, TryBlock.get(), Handlers);
 }
 
 StmtResult Parser::ParseCXXCatchBlock(bool FnCatch) {
