@@ -1,5 +1,6 @@
 add_clang_unittest(ECSLTests
   ECSLAnnotationStoreTest.cpp
+  ECSLAstTest.cpp
   ECSLCommentHandlerTest.cpp
   CLANG_LIBS
   clangAST
