@@ -9,6 +9,7 @@
 #include "clang/ECSL/ECSLParser.h"
 #include "clang/ECSL/ECSLLexer.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 
 using namespace clang;
 using namespace clang::ecsl;
@@ -45,13 +46,157 @@ static bool IsClauseBoundary(ECSLTokenKind k) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// ECSL C expression sub-parser
+// ---------------------------------------------------------------------------
+
+/// Recursive-descent parser for C expression fragments inside ECSL contracts.
+///
+/// Operates on the sub-span of CAtom / LParen / RParen tokens collected by
+/// ECSLParserImpl::ParseCTerm, and produces an ECSLExpr tree.
+///
+/// Grammar (subset of C):
+///   expr     := add-sub
+///   add-sub  := mul-div (('+' | '-') mul-div)*
+///   mul-div  := unary   (('*' | '/' | '%') unary)*
+///   unary    := '-' unary | primary
+///   primary  := int-literal | 'true' | 'false' | identifier
+///             | '(' expr ')'
+class ECSLExprParser {
+public:
+  explicit ECSLExprParser(llvm::ArrayRef<ECSLToken> tokens)
+      : m_tokens(tokens) {}
+
+  std::unique_ptr<ECSLExpr> ParseExpr() { return ParseAddSub(); }
+
+private:
+  bool AtEnd() const {
+    return m_pos >= m_tokens.size() ||
+           m_tokens[m_pos].m_kind == ECSLTokenKind::Eof;
+  }
+
+  const ECSLToken &Current() const {
+    assert(m_pos < m_tokens.size());
+    return m_tokens[m_pos];
+  }
+
+  ECSLToken Consume() {
+    ECSLToken tok = m_tokens[m_pos];
+    if (m_pos + 1 < m_tokens.size())
+      ++m_pos;
+    return tok;
+  }
+
+  std::unique_ptr<ECSLExpr> ParseAddSub() {
+    auto lhs = ParseMulDiv();
+    if (!lhs)
+      return nullptr;
+    while (!AtEnd() && Current().m_kind == ECSLTokenKind::CAtom) {
+      llvm::StringRef text = Current().m_text;
+      ExprOp op;
+      if (text == "+")
+        op = ExprOp::Add;
+      else if (text == "-")
+        op = ExprOp::Sub;
+      else
+        break;
+      ECSLToken tok = Consume();
+      auto rhs = ParseMulDiv();
+      if (!rhs)
+        break;
+      SourceRange range(lhs->m_loc.getBegin(), rhs->m_loc.getEnd());
+      lhs = ECSLExpr::MakeBinOp(op, std::move(lhs), std::move(rhs), range);
+    }
+    return lhs;
+  }
+
+  std::unique_ptr<ECSLExpr> ParseMulDiv() {
+    auto lhs = ParseUnary();
+    if (!lhs)
+      return nullptr;
+    while (!AtEnd() && Current().m_kind == ECSLTokenKind::CAtom) {
+      llvm::StringRef text = Current().m_text;
+      ExprOp op;
+      if (text == "*")
+        op = ExprOp::Mul;
+      else if (text == "/")
+        op = ExprOp::Div;
+      else if (text == "%")
+        op = ExprOp::Mod;
+      else
+        break;
+      ECSLToken tok = Consume();
+      auto rhs = ParseUnary();
+      if (!rhs)
+        break;
+      SourceRange range(lhs->m_loc.getBegin(), rhs->m_loc.getEnd());
+      lhs = ECSLExpr::MakeBinOp(op, std::move(lhs), std::move(rhs), range);
+    }
+    return lhs;
+  }
+
+  std::unique_ptr<ECSLExpr> ParseUnary() {
+    if (!AtEnd() && Current().m_kind == ECSLTokenKind::CAtom &&
+        Current().m_text == "-") {
+      ECSLToken tok = Consume();
+      auto operand = ParseUnary();
+      if (!operand)
+        return nullptr;
+      return ECSLExpr::MakeUnary(ExprOp::Neg, std::move(operand), tok.m_loc);
+    }
+    return ParsePrimary();
+  }
+
+  std::unique_ptr<ECSLExpr> ParsePrimary() {
+    if (AtEnd())
+      return nullptr;
+
+    const ECSLToken &tok = Current();
+
+    if (tok.m_kind == ECSLTokenKind::CAtom) {
+      Consume();
+      llvm::StringRef text = tok.m_text;
+
+      if (!text.empty() && text[0] >= '0' && text[0] <= '9') {
+        long long val = 0;
+        text.getAsInteger(10, val);
+        return ECSLExpr::MakeIntLit(val, tok.m_loc);
+      }
+
+      if (text == "true")
+        return ECSLExpr::MakeBoolLit(true, tok.m_loc);
+      if (text == "false")
+        return ECSLExpr::MakeBoolLit(false, tok.m_loc);
+
+      // Identifier or other alphanumeric token.
+      return ECSLExpr::MakeIdent(text, tok.m_loc);
+    }
+
+    if (tok.m_kind == ECSLTokenKind::LParen) {
+      Consume(); // '('
+      auto e = ParseExpr();
+      if (!AtEnd() && Current().m_kind == ECSLTokenKind::RParen)
+        Consume(); // ')'
+      return e;
+    }
+
+    return nullptr; // Unrecognized token — caller handles error.
+  }
+
+  llvm::ArrayRef<ECSLToken> m_tokens;
+  unsigned m_pos = 0;
+};
+
+// ---------------------------------------------------------------------------
+// Main contract parser state
+// ---------------------------------------------------------------------------
+
 /// State machine for parsing one ECSL function contract.
 class ECSLParserImpl {
 public:
   ECSLParserImpl(llvm::ArrayRef<ECSLToken> tokens, SourceLocation base_loc,
-                 DiagnosticsEngine *diags, ECSLParser::ExprDelegate delegate)
-      : m_tokens(tokens), m_base_loc(base_loc), m_diags(diags),
-        m_delegate(std::move(delegate)) {}
+                 DiagnosticsEngine *diags)
+      : m_tokens(tokens), m_base_loc(base_loc), m_diags(diags) {}
 
   std::optional<ECSLFunctionContract> ParseFunctionContract();
 
@@ -154,16 +299,15 @@ private:
 
     if (m_pos == start) {
       EmitError(Current(), "expected expression term");
-      // Return a null CExpr node; the caller will continue error recovery.
       return ECSLTerm::MakeCExpr(nullptr, SourceRange{});
     }
 
     llvm::ArrayRef<ECSLToken> span(m_tokens.data() + start, m_pos - start);
-    clang::Expr *expr = m_delegate ? m_delegate(span) : nullptr;
+    std::unique_ptr<ECSLExpr> expr = ECSLExprParser(span).ParseExpr();
 
     SourceRange range(LocOf(m_tokens[start]),
                       LocOf(m_tokens[m_pos > start ? m_pos - 1 : start]));
-    return ECSLTerm::MakeCExpr(expr, range);
+    return ECSLTerm::MakeCExpr(std::move(expr), range);
   }
 
   // ---- Predicate parsing --------------------------------------------------
@@ -214,7 +358,7 @@ private:
     }
 
     if (!has_rel)
-      return ECSLPred::MakeCExprPred(lhs.m_c_expr, lhs.m_loc);
+      return ECSLPred::MakeCExprPred(std::move(lhs.m_c_expr), lhs.m_loc);
 
     Consume(); // consume rel-op
     ECSLTerm rhs = ParseCTerm();
@@ -330,7 +474,6 @@ private:
   unsigned m_pos = 0;
   SourceLocation m_base_loc;
   DiagnosticsEngine *m_diags;
-  ECSLParser::ExprDelegate m_delegate;
 };
 
 // ---------------------------------------------------------------------------
@@ -393,13 +536,12 @@ std::optional<ECSLFunctionContract> ECSLParserImpl::ParseFunctionContract() {
 
 std::optional<ECSLFunctionContract>
 ECSLParser::ParseFunctionContract(llvm::StringRef Text, SourceLocation Loc,
-                                  DiagnosticsEngine *Diags,
-                                  ExprDelegate Delegate) {
+                                  DiagnosticsEngine *Diags) {
   llvm::SmallVector<ECSLToken> tokens;
   ECSLLexer lexer(Text, Loc);
   lexer.Lex(tokens);
 
-  ECSLParserImpl impl(tokens, Loc, Diags, std::move(Delegate));
+  ECSLParserImpl impl(tokens, Loc, Diags);
   return impl.ParseFunctionContract();
 }
 

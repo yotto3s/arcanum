@@ -1,4 +1,5 @@
-//===- unittests/ECSL/ECSLParserTest.cpp - ECSLParser unit tests -----------===//
+//===- unittests/ECSL/ECSLParserTest.cpp - ECSLParser unit tests
+//-----------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,11 +9,6 @@
 ///
 /// \file
 /// Unit tests for ECSLParser (M1 function contract grammar).
-///
-/// Tests use a null ExprDelegate so CExpr terms carry null clang::Expr*
-/// pointers — the important thing here is structural correctness (clause
-/// counts, predicate tree shapes, clause modifiers) rather than expression
-/// evaluation.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -28,12 +24,10 @@ using namespace clang::ecsl;
 namespace {
 
 /// Convenience: parse a function contract annotation.
-static std::optional<ECSLFunctionContract>
-Parse(llvm::StringRef text) {
+static std::optional<ECSLFunctionContract> Parse(llvm::StringRef text) {
   ECSLParser parser;
   return parser.ParseFunctionContract(text, SourceLocation{},
-                                      /*Diags=*/nullptr,
-                                      /*Delegate=*/nullptr);
+                                      /*Diags=*/nullptr);
 }
 
 // ---------------------------------------------------------------------------
@@ -142,8 +136,11 @@ TEST(ECSLParserTest, ParseEnsuresResultEqArithmetic) {
   ASSERT_EQ(ens.m_pred->m_kind, ECSLPred::Kind::Rel);
   EXPECT_EQ(ens.m_pred->m_rel_op, RelOp::Eq);
   EXPECT_EQ(ens.m_pred->m_lhs.m_kind, ECSLTerm::Kind::Result);
-  // RHS: "x + y" — CExpr term (delegate was null so m_c_expr is null).
-  EXPECT_EQ(ens.m_pred->m_rhs.m_kind, ECSLTerm::Kind::CExpr);
+  // RHS: "x + y" — CExpr term with a BinOp(Add, Ident(x), Ident(y)) tree.
+  ASSERT_EQ(ens.m_pred->m_rhs.m_kind, ECSLTerm::Kind::CExpr);
+  ASSERT_NE(ens.m_pred->m_rhs.m_c_expr, nullptr);
+  EXPECT_EQ(ens.m_pred->m_rhs.m_c_expr->m_kind, ECSLExpr::Kind::BinOp);
+  EXPECT_EQ(ens.m_pred->m_rhs.m_c_expr->m_op, ExprOp::Add);
 }
 
 // ---------------------------------------------------------------------------
@@ -163,8 +160,7 @@ TEST(ECSLParserTest, ParseAssignsNothing) {
 // ---------------------------------------------------------------------------
 
 TEST(ECSLParserTest, ParseMultipleClauses) {
-  const char *ann =
-      "requires x > 0; ensures \\result > 0; assigns \\nothing;";
+  const char *ann = "requires x > 0; ensures \\result > 0; assigns \\nothing;";
   auto result = Parse(ann);
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->m_requires.size(), 1u);
@@ -258,8 +254,7 @@ TEST(ECSLParserTest, ParseResultTerm) {
   auto result = Parse("ensures \\result >= 0;");
   ASSERT_TRUE(result.has_value());
   ASSERT_EQ(result->m_ensures.size(), 1u);
-  EXPECT_EQ(result->m_ensures[0].m_pred->m_lhs.m_kind,
-            ECSLTerm::Kind::Result);
+  EXPECT_EQ(result->m_ensures[0].m_pred->m_lhs.m_kind, ECSLTerm::Kind::Result);
 }
 
 TEST(ECSLParserTest, ParseNothingInAssigns) {
@@ -284,9 +279,9 @@ TEST(ECSLParserTest, ParseCExprTerm) {
 TEST(ECSLParserTest, UnknownClauseKeywordSkipped) {
   // "ensurse" is a typo — parser should skip it and parse subsequent clauses.
   auto result = Parse("ensurse \\result > 0; requires x > 0;");
-  // The parser may or may not recover the requires clause, but should not crash.
-  // If it recovered successfully, we have at least one requires.
-  // In any case, no crash is the primary test.
+  // The parser may or may not recover the requires clause, but should not
+  // crash. If it recovered successfully, we have at least one requires. In any
+  // case, no crash is the primary test.
   (void)result;
 }
 
@@ -300,10 +295,9 @@ TEST(ECSLParserTest, AssignsNonNothingSkipped) {
 }
 
 TEST(ECSLParserTest, MultilineAnnotation) {
-  const char *ann =
-      "requires x > 0;\n"
-      "ensures \\result > 0;\n"
-      "assigns \\nothing;\n";
+  const char *ann = "requires x > 0;\n"
+                    "ensures \\result > 0;\n"
+                    "assigns \\nothing;\n";
   auto result = Parse(ann);
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->m_requires.size(), 1u);
