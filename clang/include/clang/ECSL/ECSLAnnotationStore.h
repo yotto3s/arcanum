@@ -19,6 +19,7 @@
 #ifndef LLVM_CLANG_ECSL_ECSLANNOTATIONSTORE_H
 #define LLVM_CLANG_ECSL_ECSLANNOTATIONSTORE_H
 
+#include "clang/ECSL/ECSLAst.h"
 #include "clang/ECSL/ECSLCommentHandler.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -27,6 +28,7 @@
 namespace clang {
 class CompilerInstance;
 class Decl;
+class FunctionDecl;
 class Stmt;
 
 namespace ecsl {
@@ -62,9 +64,20 @@ public:
   /// Returns null when -fecsl is not active.
   static ECSLAnnotationStore *get(CompilerInstance &CI);
 
+  // -------------------------------------------------------------------------
+  // Typed contract storage (M1)
+  // -------------------------------------------------------------------------
+
+  /// Store a parsed \p Contract for \p FD, replacing any prior entry.
+  void addContract(const FunctionDecl *FD, ECSLFunctionContract Contract);
+
+  /// Return a pointer to the typed contract for \p FD, or null if none exists.
+  const ECSLFunctionContract *getContract(const FunctionDecl *FD) const;
+
 private:
   llvm::DenseMap<const Decl *, std::vector<PendingAnnotation>> DeclAnnotations;
   llvm::DenseMap<const Stmt *, std::vector<PendingAnnotation>> StmtAnnotations;
+  llvm::DenseMap<const FunctionDecl *, ECSLFunctionContract> FuncContracts;
 };
 
 } // namespace ecsl
