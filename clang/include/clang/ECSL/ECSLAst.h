@@ -86,50 +86,38 @@ struct ECSLExpr {
   std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp> m_val;
   SourceRange m_loc;
 
-  ECSLExpr() = default;
+  ECSLExpr(std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp> Val,
+           SourceRange Loc)
+      : m_val(std::move(Val)), m_loc(Loc) {}
   ~ECSLExpr() = default;
   ECSLExpr(ECSLExpr &&) = default;
   ECSLExpr &operator=(ECSLExpr &&) = default;
 
   static std::unique_ptr<ECSLExpr> MakeIntLit(std::string Val,
                                               SourceRange Loc) {
-    auto E = std::make_unique<ECSLExpr>();
-    E->m_val = IntLit{std::move(Val)};
-    E->m_loc = Loc;
-    return E;
+    return std::make_unique<ECSLExpr>(IntLit{std::move(Val)}, Loc);
   }
 
   static std::unique_ptr<ECSLExpr> MakeBoolLit(bool V, SourceRange Loc) {
-    auto E = std::make_unique<ECSLExpr>();
-    E->m_val = BoolLit{V};
-    E->m_loc = Loc;
-    return E;
+    return std::make_unique<ECSLExpr>(BoolLit{V}, Loc);
   }
 
   static std::unique_ptr<ECSLExpr> MakeIdent(llvm::StringRef Name,
                                              SourceRange Loc) {
-    auto E = std::make_unique<ECSLExpr>();
-    E->m_val = Ident{Name.str()};
-    E->m_loc = Loc;
-    return E;
+    return std::make_unique<ECSLExpr>(Ident{Name.str()}, Loc);
   }
 
   static std::unique_ptr<ECSLExpr> MakeBinOp(ExprOp Op,
                                              std::unique_ptr<ECSLExpr> L,
                                              std::unique_ptr<ECSLExpr> R,
                                              SourceRange Loc) {
-    auto E = std::make_unique<ECSLExpr>();
-    E->m_val = BinOp{Op, std::move(L), std::move(R)};
-    E->m_loc = Loc;
-    return E;
+    return std::make_unique<ECSLExpr>(BinOp{Op, std::move(L), std::move(R)},
+                                      Loc);
   }
 
   static std::unique_ptr<ECSLExpr>
   MakeUnary(ExprOp Op, std::unique_ptr<ECSLExpr> Operand, SourceRange Loc) {
-    auto E = std::make_unique<ECSLExpr>();
-    E->m_val = UnaryOp{Op, std::move(Operand)};
-    E->m_loc = Loc;
-    return E;
+    return std::make_unique<ECSLExpr>(UnaryOp{Op, std::move(Operand)}, Loc);
   }
 };
 
@@ -146,30 +134,22 @@ struct ECSLTerm {
   std::variant<Expr, Result, Nothing> m_val;
   SourceRange m_loc;
 
-  ECSLTerm() = default;
+  ECSLTerm(std::variant<Expr, Result, Nothing> Val, SourceRange Loc)
+      : m_val(std::move(Val)), m_loc(Loc) {}
   ~ECSLTerm() = default;
   ECSLTerm(ECSLTerm &&) = default;
   ECSLTerm &operator=(ECSLTerm &&) = default;
 
   static ECSLTerm MakeExpr(std::unique_ptr<ECSLExpr> E, SourceRange Loc) {
-    ECSLTerm T;
-    T.m_val = Expr{std::move(E)};
-    T.m_loc = Loc;
-    return T;
+    return ECSLTerm{Expr{std::move(E)}, Loc};
   }
 
   static ECSLTerm MakeResult(SourceRange Loc) {
-    ECSLTerm T;
-    T.m_val = Result{};
-    T.m_loc = Loc;
-    return T;
+    return ECSLTerm{Result{}, Loc};
   }
 
   static ECSLTerm MakeNothing(SourceRange Loc) {
-    ECSLTerm T;
-    T.m_val = Nothing{};
-    T.m_loc = Loc;
-    return T;
+    return ECSLTerm{Nothing{}, Loc};
   }
 };
 
@@ -200,57 +180,43 @@ struct ECSLPred {
   std::variant<True, False, Rel, And, Or, Not> m_val;
   SourceRange m_loc;
 
-  ECSLPred() = default;
+  ECSLPred(std::variant<True, False, Rel, And, Or, Not> Val, SourceRange Loc)
+      : m_val(std::move(Val)), m_loc(Loc) {}
   ~ECSLPred() = default;
   ECSLPred(ECSLPred &&) = default;
   ECSLPred &operator=(ECSLPred &&) = default;
 
   static std::unique_ptr<ECSLPred> MakeTrue(SourceRange Loc) {
-    auto P = std::make_unique<ECSLPred>();
-    P->m_val = True{};
-    P->m_loc = Loc;
-    return P;
+    return std::make_unique<ECSLPred>(True{}, Loc);
   }
 
   static std::unique_ptr<ECSLPred> MakeFalse(SourceRange Loc) {
-    auto P = std::make_unique<ECSLPred>();
-    P->m_val = False{};
-    P->m_loc = Loc;
-    return P;
+    return std::make_unique<ECSLPred>(False{}, Loc);
   }
 
   static std::unique_ptr<ECSLPred> MakeRel(ECSLTerm Lhs, RelOp Op, ECSLTerm Rhs,
                                            SourceRange Loc) {
-    auto P = std::make_unique<ECSLPred>();
-    P->m_val = Rel{Op, std::move(Lhs), std::move(Rhs)};
-    P->m_loc = Loc;
-    return P;
+    return std::make_unique<ECSLPred>(Rel{Op, std::move(Lhs), std::move(Rhs)},
+                                      Loc);
   }
 
   static std::unique_ptr<ECSLPred> MakeAnd(std::unique_ptr<ECSLPred> Left,
                                            std::unique_ptr<ECSLPred> Right,
                                            SourceRange Loc) {
-    auto P = std::make_unique<ECSLPred>();
-    P->m_val = And{std::move(Left), std::move(Right)};
-    P->m_loc = Loc;
-    return P;
+    return std::make_unique<ECSLPred>(And{std::move(Left), std::move(Right)},
+                                      Loc);
   }
 
   static std::unique_ptr<ECSLPred> MakeOr(std::unique_ptr<ECSLPred> Left,
                                           std::unique_ptr<ECSLPred> Right,
                                           SourceRange Loc) {
-    auto P = std::make_unique<ECSLPred>();
-    P->m_val = Or{std::move(Left), std::move(Right)};
-    P->m_loc = Loc;
-    return P;
+    return std::make_unique<ECSLPred>(Or{std::move(Left), std::move(Right)},
+                                      Loc);
   }
 
   static std::unique_ptr<ECSLPred> MakeNot(std::unique_ptr<ECSLPred> Operand,
                                            SourceRange Loc) {
-    auto P = std::make_unique<ECSLPred>();
-    P->m_val = Not{std::move(Operand)};
-    P->m_loc = Loc;
-    return P;
+    return std::make_unique<ECSLPred>(Not{std::move(Operand)}, Loc);
   }
 };
 
