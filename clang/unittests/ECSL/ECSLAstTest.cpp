@@ -83,19 +83,19 @@ TEST(ECSLPredTest, MakeRelSetsFieldsCorrectly) {
   EXPECT_EQ(std::get<ECSLTerm::Expr>(rel.m_rhs.m_val).m_expr.get(), raw_b);
 }
 
-TEST(ECSLPredTest, MakeRelAllOps) {
-  auto make = [](RelOp op) {
-    return ECSLPred::MakeRel(ECSLTerm::MakeExpr(nullptr, SourceRange{}), op,
+class ECSLPredRelOpTest : public ::testing::TestWithParam<RelOp> {};
+
+TEST_P(ECSLPredRelOpTest, RoundTripsOp) {
+  RelOp op = GetParam();
+  auto p = ECSLPred::MakeRel(ECSLTerm::MakeExpr(nullptr, SourceRange{}), op,
                              ECSLTerm::MakeExpr(nullptr, SourceRange{}),
                              SourceRange{});
-  };
-  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Eq)->m_val).m_op, RelOp::Eq);
-  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Ne)->m_val).m_op, RelOp::Ne);
-  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Lt)->m_val).m_op, RelOp::Lt);
-  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Le)->m_val).m_op, RelOp::Le);
-  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Gt)->m_val).m_op, RelOp::Gt);
-  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Ge)->m_val).m_op, RelOp::Ge);
+  EXPECT_EQ(std::get<ECSLPred::Rel>(p->m_val).m_op, op);
 }
+
+INSTANTIATE_TEST_SUITE_P(ECSLAllOps, ECSLPredRelOpTest,
+                         ::testing::Values(RelOp::Eq, RelOp::Ne, RelOp::Lt,
+                                           RelOp::Le, RelOp::Gt, RelOp::Ge));
 
 // ---------------------------------------------------------------------------
 // ECSLPred — connectives
@@ -154,14 +154,18 @@ TEST(ECSLPredTest, NestedAndOrTree) {
 // ECSLFunctionContract
 // ---------------------------------------------------------------------------
 
-TEST(ECSLFunctionContractTest, EmptyContractIsValid) {
-  ECSLFunctionContract c;
-  EXPECT_TRUE(c.m_requires.empty());
-  EXPECT_TRUE(c.m_ensures.empty());
-  EXPECT_FALSE(c.m_assigns_nothing.has_value());
+class ECSLFunctionContractTest : public ::testing::Test {
+protected:
+  ECSLFunctionContract m_contract;
+};
+
+TEST_F(ECSLFunctionContractTest, EmptyContractIsValid) {
+  EXPECT_TRUE(m_contract.m_requires.empty());
+  EXPECT_TRUE(m_contract.m_ensures.empty());
+  EXPECT_FALSE(m_contract.m_assigns_nothing.has_value());
 }
 
-TEST(ECSLFunctionContractTest, RequiresClauseStoresModAndPred) {
+TEST_F(ECSLFunctionContractTest, RequiresClauseStoresModAndPred) {
   ECSLFunctionContract::RequiresClause req;
   req.m_mod = ClauseModifier::None;
   req.m_pred = ECSLPred::MakeTrue(SourceRange{});
@@ -171,7 +175,7 @@ TEST(ECSLFunctionContractTest, RequiresClauseStoresModAndPred) {
   EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(req.m_pred->m_val));
 }
 
-TEST(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
+TEST_F(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
   // ensures \result == 0
   ECSLTerm result_term = ECSLTerm::MakeResult(SourceRange{});
   ECSLTerm zero_term = ECSLTerm::MakeExpr(
@@ -189,17 +193,14 @@ TEST(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
   EXPECT_EQ(rel.m_op, RelOp::Eq);
 }
 
-TEST(ECSLFunctionContractTest, AssignsNothingClauseOptional) {
-  ECSLFunctionContract c;
-  EXPECT_FALSE(c.m_assigns_nothing.has_value());
+TEST_F(ECSLFunctionContractTest, AssignsNothingClauseOptional) {
+  EXPECT_FALSE(m_contract.m_assigns_nothing.has_value());
 
-  c.m_assigns_nothing = ECSLFunctionContract::AssignsNothingClause{};
-  EXPECT_TRUE(c.m_assigns_nothing.has_value());
+  m_contract.m_assigns_nothing = ECSLFunctionContract::AssignsNothingClause{};
+  EXPECT_TRUE(m_contract.m_assigns_nothing.has_value());
 }
 
-TEST(ECSLFunctionContractTest, ContractWithMultipleClauses) {
-  ECSLFunctionContract c;
-
+TEST_F(ECSLFunctionContractTest, ContractWithMultipleClauses) {
   // requires x > 0
   {
     ECSLFunctionContract::RequiresClause req;
@@ -210,7 +211,7 @@ TEST(ECSLFunctionContractTest, ContractWithMultipleClauses) {
         ECSLTerm::MakeExpr(ECSLExpr::MakeIntLit("0", SourceRange{}),
                            SourceRange{}),
         SourceRange{});
-    c.m_requires.push_back(std::move(req));
+    m_contract.m_requires.push_back(std::move(req));
   }
 
   // ensures \result > 0
@@ -221,19 +222,20 @@ TEST(ECSLFunctionContractTest, ContractWithMultipleClauses) {
         ECSLTerm::MakeExpr(ECSLExpr::MakeIntLit("0", SourceRange{}),
                            SourceRange{}),
         SourceRange{});
-    c.m_ensures.push_back(std::move(ens));
+    m_contract.m_ensures.push_back(std::move(ens));
   }
 
   // assigns \nothing
-  c.m_assigns_nothing = ECSLFunctionContract::AssignsNothingClause{};
+  m_contract.m_assigns_nothing = ECSLFunctionContract::AssignsNothingClause{};
 
-  EXPECT_EQ(c.m_requires.size(), 1u);
-  EXPECT_EQ(c.m_ensures.size(), 1u);
-  EXPECT_TRUE(c.m_assigns_nothing.has_value());
-  EXPECT_TRUE(
-      std::holds_alternative<ECSLPred::Rel>(c.m_requires[0].m_pred->m_val));
+  EXPECT_EQ(m_contract.m_requires.size(), 1u);
+  EXPECT_EQ(m_contract.m_ensures.size(), 1u);
+  EXPECT_TRUE(m_contract.m_assigns_nothing.has_value());
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::Rel>(
+      m_contract.m_requires[0].m_pred->m_val));
   EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(
-      std::get<ECSLPred::Rel>(c.m_ensures[0].m_pred->m_val).m_lhs.m_val));
+      std::get<ECSLPred::Rel>(m_contract.m_ensures[0].m_pred->m_val)
+          .m_lhs.m_val));
 }
 
 // ---------------------------------------------------------------------------
@@ -289,23 +291,20 @@ TEST(ECSLExprTest, MakeBinOp) {
   EXPECT_EQ(binop.m_rhs.get(), raw_rhs);
 }
 
-TEST(ECSLExprTest, MakeBinOpAllOps) {
-  auto make = [](ExprOp op) {
-    return ECSLExpr::MakeBinOp(op, ECSLExpr::MakeIntLit("0", SourceRange{}),
+class ECSLExprBinOpTest : public ::testing::TestWithParam<ExprOp> {};
+
+TEST_P(ECSLExprBinOpTest, RoundTripsOp) {
+  ExprOp op = GetParam();
+  auto e = ECSLExpr::MakeBinOp(op, ECSLExpr::MakeIntLit("0", SourceRange{}),
                                ECSLExpr::MakeIntLit("0", SourceRange{}),
                                SourceRange{});
-  };
-  EXPECT_EQ(std::get<ECSLExpr::BinOp>(make(ExprOp::Add)->m_val).m_op,
-            ExprOp::Add);
-  EXPECT_EQ(std::get<ECSLExpr::BinOp>(make(ExprOp::Sub)->m_val).m_op,
-            ExprOp::Sub);
-  EXPECT_EQ(std::get<ECSLExpr::BinOp>(make(ExprOp::Mul)->m_val).m_op,
-            ExprOp::Mul);
-  EXPECT_EQ(std::get<ECSLExpr::BinOp>(make(ExprOp::Div)->m_val).m_op,
-            ExprOp::Div);
-  EXPECT_EQ(std::get<ECSLExpr::BinOp>(make(ExprOp::Mod)->m_val).m_op,
-            ExprOp::Mod);
+  EXPECT_EQ(std::get<ECSLExpr::BinOp>(e->m_val).m_op, op);
 }
+
+INSTANTIATE_TEST_SUITE_P(ECSLAllOps, ECSLExprBinOpTest,
+                         ::testing::Values(ExprOp::Add, ExprOp::Sub,
+                                           ExprOp::Mul, ExprOp::Div,
+                                           ExprOp::Mod));
 
 TEST(ECSLExprTest, MakeUnary) {
   auto operand = ECSLExpr::MakeIntLit("5", SourceRange{});
