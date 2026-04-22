@@ -30,18 +30,18 @@ TEST(ECSLTermTest, MakeExprSetsKindAndExpr) {
   auto expr = ECSLExpr::MakeIntLit("7", SourceRange{});
   ECSLExpr *raw = expr.get();
   ECSLTerm t = ECSLTerm::MakeExpr(std::move(expr), SourceRange{});
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Expr>(t.m_val));
-  EXPECT_EQ(std::get<ECSLTerm::Expr>(t.m_val).m_expr.get(), raw);
+  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Expr>(t.Val()));
+  EXPECT_EQ(std::get<ECSLTerm::Expr>(t.Val()).m_expr.get(), raw);
 }
 
 TEST(ECSLTermTest, MakeResultSetsKind) {
   ECSLTerm t = ECSLTerm::MakeResult(SourceRange{});
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(t.m_val));
+  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(t.Val()));
 }
 
 TEST(ECSLTermTest, MakeNothingSetsKind) {
   ECSLTerm t = ECSLTerm::MakeNothing(SourceRange{});
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Nothing>(t.m_val));
+  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Nothing>(t.Val()));
 }
 
 // ---------------------------------------------------------------------------
@@ -51,13 +51,13 @@ TEST(ECSLTermTest, MakeNothingSetsKind) {
 TEST(ECSLPredTest, MakeTrue) {
   auto p = ECSLPred::MakeTrue(SourceRange{});
   ASSERT_NE(p, nullptr);
-  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(p->m_val));
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(p->Val()));
 }
 
 TEST(ECSLPredTest, MakeFalse) {
   auto p = ECSLPred::MakeFalse(SourceRange{});
   ASSERT_NE(p, nullptr);
-  EXPECT_TRUE(std::holds_alternative<ECSLPred::False>(p->m_val));
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::False>(p->Val()));
 }
 
 // ---------------------------------------------------------------------------
@@ -76,11 +76,11 @@ TEST(ECSLPredTest, MakeRelSetsFieldsCorrectly) {
   auto p = ECSLPred::MakeRel(std::move(lhs), RelOp::Gt, std::move(rhs),
                              SourceRange{});
   ASSERT_NE(p, nullptr);
-  ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(p->m_val));
-  auto &rel = std::get<ECSLPred::Rel>(p->m_val);
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(p->Val()));
+  auto &rel = std::get<ECSLPred::Rel>(p->Val());
   EXPECT_EQ(rel.m_op, RelOp::Gt);
-  EXPECT_EQ(std::get<ECSLTerm::Expr>(rel.m_lhs.m_val).m_expr.get(), raw_a);
-  EXPECT_EQ(std::get<ECSLTerm::Expr>(rel.m_rhs.m_val).m_expr.get(), raw_b);
+  EXPECT_EQ(std::get<ECSLTerm::Expr>(rel.m_lhs.Val()).m_expr.get(), raw_a);
+  EXPECT_EQ(std::get<ECSLTerm::Expr>(rel.m_rhs.Val()).m_expr.get(), raw_b);
 }
 
 class ECSLPredRelOpTest : public ::testing::TestWithParam<RelOp> {};
@@ -90,7 +90,7 @@ TEST_P(ECSLPredRelOpTest, RoundTripsOp) {
   auto p = ECSLPred::MakeRel(ECSLTerm::MakeExpr(nullptr, SourceRange{}), op,
                              ECSLTerm::MakeExpr(nullptr, SourceRange{}),
                              SourceRange{});
-  EXPECT_EQ(std::get<ECSLPred::Rel>(p->m_val).m_op, op);
+  EXPECT_EQ(std::get<ECSLPred::Rel>(p->Val()).m_op, op);
 }
 
 INSTANTIATE_TEST_SUITE_P(ECSLAllOps, ECSLPredRelOpTest,
@@ -106,12 +106,12 @@ TEST(ECSLPredTest, MakeAnd) {
   auto right = ECSLPred::MakeFalse(SourceRange{});
   auto p = ECSLPred::MakeAnd(std::move(left), std::move(right), SourceRange{});
   ASSERT_NE(p, nullptr);
-  ASSERT_TRUE(std::holds_alternative<ECSLPred::And>(p->m_val));
-  auto &and_pred = std::get<ECSLPred::And>(p->m_val);
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::And>(p->Val()));
+  auto &and_pred = std::get<ECSLPred::And>(p->Val());
   ASSERT_NE(and_pred.m_left, nullptr);
   ASSERT_NE(and_pred.m_right, nullptr);
-  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(and_pred.m_left->m_val));
-  EXPECT_TRUE(std::holds_alternative<ECSLPred::False>(and_pred.m_right->m_val));
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(and_pred.m_left->Val()));
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::False>(and_pred.m_right->Val()));
 }
 
 TEST(ECSLPredTest, MakeOr) {
@@ -119,18 +119,18 @@ TEST(ECSLPredTest, MakeOr) {
   auto right = ECSLPred::MakeTrue(SourceRange{});
   auto p = ECSLPred::MakeOr(std::move(left), std::move(right), SourceRange{});
   ASSERT_NE(p, nullptr);
-  EXPECT_TRUE(std::holds_alternative<ECSLPred::Or>(p->m_val));
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::Or>(p->Val()));
 }
 
 TEST(ECSLPredTest, MakeNot) {
   auto inner = ECSLPred::MakeTrue(SourceRange{});
   auto p = ECSLPred::MakeNot(std::move(inner), SourceRange{});
   ASSERT_NE(p, nullptr);
-  ASSERT_TRUE(std::holds_alternative<ECSLPred::Not>(p->m_val));
-  auto &not_pred = std::get<ECSLPred::Not>(p->m_val);
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::Not>(p->Val()));
+  auto &not_pred = std::get<ECSLPred::Not>(p->Val());
   ASSERT_NE(not_pred.m_operand, nullptr);
   EXPECT_TRUE(
-      std::holds_alternative<ECSLPred::True>(not_pred.m_operand->m_val));
+      std::holds_alternative<ECSLPred::True>(not_pred.m_operand->Val()));
 }
 
 TEST(ECSLPredTest, NestedAndOrTree) {
@@ -144,10 +144,10 @@ TEST(ECSLPredTest, NestedAndOrTree) {
                                SourceRange{});
 
   ASSERT_NE(root, nullptr);
-  ASSERT_TRUE(std::holds_alternative<ECSLPred::Or>(root->m_val));
-  auto &or_pred = std::get<ECSLPred::Or>(root->m_val);
-  EXPECT_TRUE(std::holds_alternative<ECSLPred::And>(or_pred.m_left->m_val));
-  EXPECT_TRUE(std::holds_alternative<ECSLPred::Not>(or_pred.m_right->m_val));
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::Or>(root->Val()));
+  auto &or_pred = std::get<ECSLPred::Or>(root->Val());
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::And>(or_pred.m_left->Val()));
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::Not>(or_pred.m_right->Val()));
 }
 
 // ---------------------------------------------------------------------------
@@ -160,9 +160,9 @@ protected:
 };
 
 TEST_F(ECSLFunctionContractTest, EmptyContractIsValid) {
-  EXPECT_TRUE(m_contract.m_requires.empty());
-  EXPECT_TRUE(m_contract.m_ensures.empty());
-  EXPECT_FALSE(m_contract.m_assigns_nothing.has_value());
+  EXPECT_EQ(m_contract.RequiresCount(), 0u);
+  EXPECT_EQ(m_contract.EnsuresCount(), 0u);
+  EXPECT_FALSE(m_contract.HasAssignsNothing());
 }
 
 TEST_F(ECSLFunctionContractTest, RequiresClauseStoresModAndPred) {
@@ -172,7 +172,7 @@ TEST_F(ECSLFunctionContractTest, RequiresClauseStoresModAndPred) {
 
   EXPECT_EQ(req.m_mod, ClauseModifier::None);
   ASSERT_NE(req.m_pred, nullptr);
-  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(req.m_pred->m_val));
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(req.m_pred->Val()));
 }
 
 TEST_F(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
@@ -187,17 +187,17 @@ TEST_F(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
   ens.m_pred = std::move(pred);
 
   ASSERT_NE(ens.m_pred, nullptr);
-  ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(ens.m_pred->m_val));
-  auto &rel = std::get<ECSLPred::Rel>(ens.m_pred->m_val);
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.m_val));
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(ens.m_pred->Val()));
+  auto &rel = std::get<ECSLPred::Rel>(ens.m_pred->Val());
+  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.Val()));
   EXPECT_EQ(rel.m_op, RelOp::Eq);
 }
 
 TEST_F(ECSLFunctionContractTest, AssignsNothingClauseOptional) {
-  EXPECT_FALSE(m_contract.m_assigns_nothing.has_value());
+  EXPECT_FALSE(m_contract.HasAssignsNothing());
 
-  m_contract.m_assigns_nothing = ECSLFunctionContract::AssignsNothingClause{};
-  EXPECT_TRUE(m_contract.m_assigns_nothing.has_value());
+  m_contract.SetAssignsNothing(ECSLFunctionContract::AssignsNothingClause{});
+  EXPECT_TRUE(m_contract.HasAssignsNothing());
 }
 
 TEST_F(ECSLFunctionContractTest, ContractWithMultipleClauses) {
@@ -211,7 +211,7 @@ TEST_F(ECSLFunctionContractTest, ContractWithMultipleClauses) {
         ECSLTerm::MakeExpr(ECSLExpr::MakeIntLit("0", SourceRange{}),
                            SourceRange{}),
         SourceRange{});
-    m_contract.m_requires.push_back(std::move(req));
+    m_contract.AddRequires(std::move(req));
   }
 
   // ensures \result > 0
@@ -222,20 +222,15 @@ TEST_F(ECSLFunctionContractTest, ContractWithMultipleClauses) {
         ECSLTerm::MakeExpr(ECSLExpr::MakeIntLit("0", SourceRange{}),
                            SourceRange{}),
         SourceRange{});
-    m_contract.m_ensures.push_back(std::move(ens));
+    m_contract.AddEnsures(std::move(ens));
   }
 
   // assigns \nothing
-  m_contract.m_assigns_nothing = ECSLFunctionContract::AssignsNothingClause{};
+  m_contract.SetAssignsNothing(ECSLFunctionContract::AssignsNothingClause{});
 
-  EXPECT_EQ(m_contract.m_requires.size(), 1u);
-  EXPECT_EQ(m_contract.m_ensures.size(), 1u);
-  EXPECT_TRUE(m_contract.m_assigns_nothing.has_value());
-  EXPECT_TRUE(std::holds_alternative<ECSLPred::Rel>(
-      m_contract.m_requires[0].m_pred->m_val));
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(
-      std::get<ECSLPred::Rel>(m_contract.m_ensures[0].m_pred->m_val)
-          .m_lhs.m_val));
+  EXPECT_EQ(m_contract.RequiresCount(), 1u);
+  EXPECT_EQ(m_contract.EnsuresCount(), 1u);
+  EXPECT_TRUE(m_contract.HasAssignsNothing());
 }
 
 // ---------------------------------------------------------------------------
@@ -257,23 +252,23 @@ TEST(ECSLPredTest, MoveConstruction) {
 TEST(ECSLExprTest, MakeIntLit) {
   auto e = ECSLExpr::MakeIntLit("42", SourceRange{});
   ASSERT_NE(e, nullptr);
-  ASSERT_TRUE(std::holds_alternative<ECSLExpr::IntLit>(e->m_val));
-  EXPECT_EQ(std::get<ECSLExpr::IntLit>(e->m_val).m_val, "42");
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::IntLit>(e->Val()));
+  EXPECT_EQ(std::get<ECSLExpr::IntLit>(e->Val()).m_val, "42");
 }
 
 TEST(ECSLExprTest, MakeBoolLit) {
   auto t = ECSLExpr::MakeBoolLit(true, SourceRange{});
   auto f = ECSLExpr::MakeBoolLit(false, SourceRange{});
-  EXPECT_TRUE(std::holds_alternative<ECSLExpr::BoolLit>(t->m_val));
-  EXPECT_TRUE(std::get<ECSLExpr::BoolLit>(t->m_val).m_val);
-  EXPECT_FALSE(std::get<ECSLExpr::BoolLit>(f->m_val).m_val);
+  EXPECT_TRUE(std::holds_alternative<ECSLExpr::BoolLit>(t->Val()));
+  EXPECT_TRUE(std::get<ECSLExpr::BoolLit>(t->Val()).m_val);
+  EXPECT_FALSE(std::get<ECSLExpr::BoolLit>(f->Val()).m_val);
 }
 
 TEST(ECSLExprTest, MakeIdent) {
   auto e = ECSLExpr::MakeIdent("x", SourceRange{});
   ASSERT_NE(e, nullptr);
-  ASSERT_TRUE(std::holds_alternative<ECSLExpr::Ident>(e->m_val));
-  EXPECT_EQ(std::get<ECSLExpr::Ident>(e->m_val).m_name, "x");
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::Ident>(e->Val()));
+  EXPECT_EQ(std::get<ECSLExpr::Ident>(e->Val()).m_name, "x");
 }
 
 TEST(ECSLExprTest, MakeBinOp) {
@@ -284,8 +279,8 @@ TEST(ECSLExprTest, MakeBinOp) {
   auto e = ECSLExpr::MakeBinOp(ExprOp::Add, std::move(lhs), std::move(rhs),
                                SourceRange{});
   ASSERT_NE(e, nullptr);
-  ASSERT_TRUE(std::holds_alternative<ECSLExpr::BinOp>(e->m_val));
-  auto &binop = std::get<ECSLExpr::BinOp>(e->m_val);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::BinOp>(e->Val()));
+  auto &binop = std::get<ECSLExpr::BinOp>(e->Val());
   EXPECT_EQ(binop.m_op, ExprOp::Add);
   EXPECT_EQ(binop.m_lhs.get(), raw_lhs);
   EXPECT_EQ(binop.m_rhs.get(), raw_rhs);
@@ -298,7 +293,7 @@ TEST_P(ECSLExprBinOpTest, RoundTripsOp) {
   auto e = ECSLExpr::MakeBinOp(op, ECSLExpr::MakeIntLit("0", SourceRange{}),
                                ECSLExpr::MakeIntLit("0", SourceRange{}),
                                SourceRange{});
-  EXPECT_EQ(std::get<ECSLExpr::BinOp>(e->m_val).m_op, op);
+  EXPECT_EQ(std::get<ECSLExpr::BinOp>(e->Val()).m_op, op);
 }
 
 INSTANTIATE_TEST_SUITE_P(ECSLAllOps, ECSLExprBinOpTest,
@@ -311,8 +306,8 @@ TEST(ECSLExprTest, MakeUnary) {
   ECSLExpr *raw = operand.get();
   auto e = ECSLExpr::MakeUnary(ExprOp::Neg, std::move(operand), SourceRange{});
   ASSERT_NE(e, nullptr);
-  ASSERT_TRUE(std::holds_alternative<ECSLExpr::UnaryOp>(e->m_val));
-  auto &unary = std::get<ECSLExpr::UnaryOp>(e->m_val);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::UnaryOp>(e->Val()));
+  auto &unary = std::get<ECSLExpr::UnaryOp>(e->Val());
   EXPECT_EQ(unary.m_op, ExprOp::Neg);
   EXPECT_EQ(unary.m_operand.get(), raw);
 }
@@ -326,13 +321,13 @@ TEST(ECSLExprTest, NestedBinOp) {
                                    ECSLExpr::MakeIntLit("3", SourceRange{}),
                                    SourceRange{});
   ASSERT_NE(outer, nullptr);
-  ASSERT_TRUE(std::holds_alternative<ECSLExpr::BinOp>(outer->m_val));
-  auto &outer_binop = std::get<ECSLExpr::BinOp>(outer->m_val);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::BinOp>(outer->Val()));
+  auto &outer_binop = std::get<ECSLExpr::BinOp>(outer->Val());
   EXPECT_EQ(outer_binop.m_op, ExprOp::Mul);
   ASSERT_NE(outer_binop.m_lhs, nullptr);
   ASSERT_TRUE(
-      std::holds_alternative<ECSLExpr::BinOp>(outer_binop.m_lhs->m_val));
-  EXPECT_EQ(std::get<ECSLExpr::BinOp>(outer_binop.m_lhs->m_val).m_op,
+      std::holds_alternative<ECSLExpr::BinOp>(outer_binop.m_lhs->Val()));
+  EXPECT_EQ(std::get<ECSLExpr::BinOp>(outer_binop.m_lhs->Val()).m_op,
             ExprOp::Add);
 }
 

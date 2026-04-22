@@ -83,15 +83,22 @@ struct ECSLExpr {
     std::unique_ptr<ECSLExpr> m_operand;
   };
 
+private:
   std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp> m_val;
   SourceRange m_loc;
 
+public:
   ECSLExpr(std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp> Val,
            SourceRange Loc)
       : m_val(std::move(Val)), m_loc(Loc) {}
   ~ECSLExpr() = default;
   ECSLExpr(ECSLExpr &&) = default;
   ECSLExpr &operator=(ECSLExpr &&) = default;
+
+  const std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp> &Val() const {
+    return m_val;
+  }
+  SourceRange Loc() const { return m_loc; }
 
   static std::unique_ptr<ECSLExpr> MakeIntLit(std::string Val,
                                               SourceRange Loc) {
@@ -131,14 +138,19 @@ struct ECSLTerm {
   struct Result {};
   struct Nothing {};
 
+private:
   std::variant<Expr, Result, Nothing> m_val;
   SourceRange m_loc;
 
+public:
   ECSLTerm(std::variant<Expr, Result, Nothing> Val, SourceRange Loc)
       : m_val(std::move(Val)), m_loc(Loc) {}
   ~ECSLTerm() = default;
   ECSLTerm(ECSLTerm &&) = default;
   ECSLTerm &operator=(ECSLTerm &&) = default;
+
+  const std::variant<Expr, Result, Nothing> &Val() const { return m_val; }
+  SourceRange Loc() const { return m_loc; }
 
   static ECSLTerm MakeExpr(std::unique_ptr<ECSLExpr> E, SourceRange Loc) {
     return ECSLTerm{Expr{std::move(E)}, Loc};
@@ -177,14 +189,21 @@ struct ECSLPred {
     std::unique_ptr<ECSLPred> m_operand;
   };
 
+private:
   std::variant<True, False, Rel, And, Or, Not> m_val;
   SourceRange m_loc;
 
+public:
   ECSLPred(std::variant<True, False, Rel, And, Or, Not> Val, SourceRange Loc)
       : m_val(std::move(Val)), m_loc(Loc) {}
   ~ECSLPred() = default;
   ECSLPred(ECSLPred &&) = default;
   ECSLPred &operator=(ECSLPred &&) = default;
+
+  const std::variant<True, False, Rel, And, Or, Not> &Val() const {
+    return m_val;
+  }
+  SourceRange Loc() const { return m_loc; }
 
   static std::unique_ptr<ECSLPred> MakeTrue(SourceRange Loc) {
     return std::make_unique<ECSLPred>(True{}, Loc);
@@ -248,6 +267,24 @@ struct ECSLFunctionContract {
     SourceRange m_loc;
   };
 
+  ECSLFunctionContract() = default;
+
+  void AddRequires(RequiresClause Clause) {
+    m_requires.push_back(std::move(Clause));
+  }
+  void AddEnsures(EnsuresClause Clause) {
+    m_ensures.push_back(std::move(Clause));
+  }
+  void SetAssignsNothing(AssignsNothingClause Clause) {
+    m_assigns_nothing = std::move(Clause);
+  }
+
+  size_t RequiresCount() const { return m_requires.size(); }
+  size_t EnsuresCount() const { return m_ensures.size(); }
+  bool HasAssignsNothing() const { return m_assigns_nothing.has_value(); }
+  SourceRange Loc() const { return m_loc; }
+
+private:
   std::vector<RequiresClause> m_requires;
   std::vector<EnsuresClause> m_ensures;
   std::optional<AssignsNothingClause> m_assigns_nothing;
