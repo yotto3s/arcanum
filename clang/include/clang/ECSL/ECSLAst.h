@@ -1,4 +1,4 @@
-//===- clang/ECSL/ECSLAst.h - M1 ECSL annotation AST nodes ---------------===//
+//===- clang/ECSL/ECSLAst.h - ECSL annotation AST nodes -------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,15 +7,8 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// Declares the M1 ECSL annotation AST node types produced by the ECSL parser:
+/// Declares the ECSL annotation AST node types produced by the ECSL parser:
 /// ECSLExpr, ECSLTerm, ECSLPred, and ECSLFunctionContract.
-///
-/// M1 scope covers: requires, ensures, assigns \nothing, \result, \nothing,
-/// relational and logical predicate operators, and arithmetic terms parsed by
-/// ECSL's own recursive-descent C expression parser (no Clang delegation).
-///
-/// Node kinds are defined as enumerators inside each struct so the set can be
-/// extended in later milestones (M2+) without breaking existing code.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -27,6 +20,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
+#include <variant>
 #include <vector>
 
 namespace clang {
@@ -35,8 +30,8 @@ namespace ecsl {
 /// Clause modifier applied to requires/ensures clauses.
 enum class ClauseModifier {
   None,  ///< No modifier (default).
-  Check, ///< check: verify the clause, do not assume it (M3).
-  Admit, ///< admit: assume without verification (M3).
+  Check, ///< check: verify the clause, do not assume it.
+  Admit, ///< admit: assume without verification.
 };
 
 /// Relational operator used in an ECSLPred::Rel comparison.
@@ -65,30 +60,30 @@ enum class ExprOp {
 // Forward-declared so ECSLExpr can contain std::unique_ptr<ECSLExpr>.
 struct ECSLExpr;
 
-/// A C expression fragment parsed by the ECSL expression parser.
-///
-/// Replaces the old clang::Expr* delegation approach. All arithmetic and
-/// identifier subexpressions inside ECSL contracts are represented with this
-/// type rather than delegated to Clang's parser.
+/// An expression fragment parsed by the ECSL expression parser.
 ///
 /// Move-only due to unique_ptr children.
 struct ECSLExpr {
-  enum class Kind {
-    IntLit,  ///< Integer literal: m_int_val.
-    BoolLit, ///< Boolean literal: m_bool_val.
-    Ident,   ///< Variable reference: m_name.
-    BinOp,   ///< Binary op: m_op, m_lhs, m_rhs.
-    UnaryOp, ///< Unary op: m_op, m_lhs (m_rhs is null).
+  struct IntLit {
+    std::string m_val;
+  };
+  struct BoolLit {
+    bool m_val = false;
+  };
+  struct Ident {
+    std::string m_name;
+  };
+  struct BinOp {
+    ExprOp m_op = ExprOp::Add;
+    std::unique_ptr<ECSLExpr> m_lhs;
+    std::unique_ptr<ECSLExpr> m_rhs;
+  };
+  struct UnaryOp {
+    ExprOp m_op = ExprOp::Neg;
+    std::unique_ptr<ECSLExpr> m_operand;
   };
 
-  Kind m_kind;
-  long long m_int_val = 0;         ///< Valid when m_kind == IntLit.
-  bool m_bool_val = false;         ///< Valid when m_kind == BoolLit.
-  std::string m_name;              ///< Valid when m_kind == Ident.
-  ExprOp m_op = ExprOp::Add;       ///< Valid when m_kind == BinOp/UnaryOp.
-  std::unique_ptr<ECSLExpr> m_lhs; ///< Valid when m_kind == BinOp/UnaryOp.
-  std::unique_ptr<ECSLExpr>
-      m_rhs; ///< Valid when m_kind == BinOp (null for UnaryOp).
+  std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp> m_val;
   SourceRange m_loc;
 
   ECSLExpr() = default;
@@ -96,18 +91,17 @@ struct ECSLExpr {
   ECSLExpr(ECSLExpr &&) = default;
   ECSLExpr &operator=(ECSLExpr &&) = default;
 
-  static std::unique_ptr<ECSLExpr> MakeIntLit(long long V, SourceRange Loc) {
+  static std::unique_ptr<ECSLExpr> MakeIntLit(std::string Val,
+                                              SourceRange Loc) {
     auto E = std::make_unique<ECSLExpr>();
-    E->m_kind = Kind::IntLit;
-    E->m_int_val = V;
+    E->m_val = IntLit{std::move(Val)};
     E->m_loc = Loc;
     return E;
   }
 
   static std::unique_ptr<ECSLExpr> MakeBoolLit(bool V, SourceRange Loc) {
     auto E = std::make_unique<ECSLExpr>();
-    E->m_kind = Kind::BoolLit;
-    E->m_bool_val = V;
+    E->m_val = BoolLit{V};
     E->m_loc = Loc;
     return E;
   }
@@ -115,8 +109,7 @@ struct ECSLExpr {
   static std::unique_ptr<ECSLExpr> MakeIdent(llvm::StringRef Name,
                                              SourceRange Loc) {
     auto E = std::make_unique<ECSLExpr>();
-    E->m_kind = Kind::Ident;
-    E->m_name = Name.str();
+    E->m_val = Ident{Name.str()};
     E->m_loc = Loc;
     return E;
   }
@@ -126,10 +119,7 @@ struct ECSLExpr {
                                              std::unique_ptr<ECSLExpr> R,
                                              SourceRange Loc) {
     auto E = std::make_unique<ECSLExpr>();
-    E->m_kind = Kind::BinOp;
-    E->m_op = Op;
-    E->m_lhs = std::move(L);
-    E->m_rhs = std::move(R);
+    E->m_val = BinOp{Op, std::move(L), std::move(R)};
     E->m_loc = Loc;
     return E;
   }
@@ -137,9 +127,7 @@ struct ECSLExpr {
   static std::unique_ptr<ECSLExpr>
   MakeUnary(ExprOp Op, std::unique_ptr<ECSLExpr> Operand, SourceRange Loc) {
     auto E = std::make_unique<ECSLExpr>();
-    E->m_kind = Kind::UnaryOp;
-    E->m_op = Op;
-    E->m_lhs = std::move(Operand);
+    E->m_val = UnaryOp{Op, std::move(Operand)};
     E->m_loc = Loc;
     return E;
   }
@@ -147,18 +135,15 @@ struct ECSLExpr {
 
 /// A term in an ECSL annotation.
 ///
-/// In M1, terms appear as the operands of relational predicates. Arithmetic
-/// subexpressions (+, -, *, /, %) are represented as ECSLExpr trees parsed by
-/// ECSL's own expression parser (no Clang delegation).
+/// Terms appear as the operands of relational predicates.
 struct ECSLTerm {
-  enum class Kind {
-    CExpr,   ///< C expression stored in m_c_expr, parsed by ECSL expr parser.
-    Result,  ///< \result — the return value of the annotated function.
-    Nothing, ///< \nothing — the empty location set; used in assigns \nothing.
+  struct Expr {
+    std::unique_ptr<ECSLExpr> m_expr;
   };
+  struct Result {};
+  struct Nothing {};
 
-  Kind m_kind = Kind::CExpr;
-  std::unique_ptr<ECSLExpr> m_c_expr; ///< Non-null iff m_kind == Kind::CExpr.
+  std::variant<Expr, Result, Nothing> m_val;
   SourceRange m_loc;
 
   ECSLTerm() = default;
@@ -166,24 +151,23 @@ struct ECSLTerm {
   ECSLTerm(ECSLTerm &&) = default;
   ECSLTerm &operator=(ECSLTerm &&) = default;
 
-  static ECSLTerm MakeCExpr(std::unique_ptr<ECSLExpr> E, SourceRange Loc) {
+  static ECSLTerm MakeExpr(std::unique_ptr<ECSLExpr> E, SourceRange Loc) {
     ECSLTerm T;
-    T.m_kind = Kind::CExpr;
-    T.m_c_expr = std::move(E);
+    T.m_val = Expr{std::move(E)};
     T.m_loc = Loc;
     return T;
   }
 
   static ECSLTerm MakeResult(SourceRange Loc) {
     ECSLTerm T;
-    T.m_kind = Kind::Result;
+    T.m_val = Result{};
     T.m_loc = Loc;
     return T;
   }
 
   static ECSLTerm MakeNothing(SourceRange Loc) {
     ECSLTerm T;
-    T.m_kind = Kind::Nothing;
+    T.m_val = Nothing{};
     T.m_loc = Loc;
     return T;
   }
@@ -193,35 +177,28 @@ struct ECSLTerm {
 ///
 /// The tree is heap-allocated via unique_ptr to support arbitrary nesting
 /// depth. Move-only due to unique_ptr members; never copy a predicate tree.
-///
-/// M1 kinds: True, False, Rel, And, Or, Not.
 struct ECSLPred {
-  enum class Kind {
-    True,  ///< Logical true (\true, or predicate that is trivially satisfied).
-    False, ///< Logical false (\false).
-    Rel,   ///< Relational comparison: m_lhs m_rel_op m_rhs.
-    And,   ///< Conjunction: m_left && m_right.
-    Or,    ///< Disjunction: m_left || m_right.
-    Not,   ///< Negation: !m_operand.
+  struct True {};
+  struct False {};
+  struct Rel {
+    RelOp m_op = RelOp::Eq;
+    ECSLTerm m_lhs;
+    ECSLTerm m_rhs;
+  };
+  struct And {
+    std::unique_ptr<ECSLPred> m_left;
+    std::unique_ptr<ECSLPred> m_right;
+  };
+  struct Or {
+    std::unique_ptr<ECSLPred> m_left;
+    std::unique_ptr<ECSLPred> m_right;
+  };
+  struct Not {
+    std::unique_ptr<ECSLPred> m_operand;
   };
 
-  Kind m_kind = Kind::True;
+  std::variant<True, False, Rel, And, Or, Not> m_val;
   SourceRange m_loc;
-
-  /// Relational operator. Valid when m_kind == Kind::Rel.
-  RelOp m_rel_op = RelOp::Eq;
-  /// Left operand. Valid when m_kind == Kind::Rel.
-  ECSLTerm m_lhs;
-  /// Right operand. Valid when m_kind == Kind::Rel.
-  ECSLTerm m_rhs;
-
-  /// Left sub-predicate. Valid when m_kind == Kind::And or Kind::Or.
-  std::unique_ptr<ECSLPred> m_left;
-  /// Right sub-predicate. Valid when m_kind == Kind::And or Kind::Or.
-  std::unique_ptr<ECSLPred> m_right;
-
-  /// Sub-predicate to negate. Valid when m_kind == Kind::Not.
-  std::unique_ptr<ECSLPred> m_operand;
 
   ECSLPred() = default;
   ~ECSLPred() = default;
@@ -230,14 +207,14 @@ struct ECSLPred {
 
   static std::unique_ptr<ECSLPred> MakeTrue(SourceRange Loc) {
     auto P = std::make_unique<ECSLPred>();
-    P->m_kind = Kind::True;
+    P->m_val = True{};
     P->m_loc = Loc;
     return P;
   }
 
   static std::unique_ptr<ECSLPred> MakeFalse(SourceRange Loc) {
     auto P = std::make_unique<ECSLPred>();
-    P->m_kind = Kind::False;
+    P->m_val = False{};
     P->m_loc = Loc;
     return P;
   }
@@ -245,10 +222,7 @@ struct ECSLPred {
   static std::unique_ptr<ECSLPred> MakeRel(ECSLTerm Lhs, RelOp Op, ECSLTerm Rhs,
                                            SourceRange Loc) {
     auto P = std::make_unique<ECSLPred>();
-    P->m_kind = Kind::Rel;
-    P->m_rel_op = Op;
-    P->m_lhs = std::move(Lhs);
-    P->m_rhs = std::move(Rhs);
+    P->m_val = Rel{Op, std::move(Lhs), std::move(Rhs)};
     P->m_loc = Loc;
     return P;
   }
@@ -257,9 +231,7 @@ struct ECSLPred {
                                            std::unique_ptr<ECSLPred> Right,
                                            SourceRange Loc) {
     auto P = std::make_unique<ECSLPred>();
-    P->m_kind = Kind::And;
-    P->m_left = std::move(Left);
-    P->m_right = std::move(Right);
+    P->m_val = And{std::move(Left), std::move(Right)};
     P->m_loc = Loc;
     return P;
   }
@@ -268,9 +240,7 @@ struct ECSLPred {
                                           std::unique_ptr<ECSLPred> Right,
                                           SourceRange Loc) {
     auto P = std::make_unique<ECSLPred>();
-    P->m_kind = Kind::Or;
-    P->m_left = std::move(Left);
-    P->m_right = std::move(Right);
+    P->m_val = Or{std::move(Left), std::move(Right)};
     P->m_loc = Loc;
     return P;
   }
@@ -278,14 +248,13 @@ struct ECSLPred {
   static std::unique_ptr<ECSLPred> MakeNot(std::unique_ptr<ECSLPred> Operand,
                                            SourceRange Loc) {
     auto P = std::make_unique<ECSLPred>();
-    P->m_kind = Kind::Not;
-    P->m_operand = std::move(Operand);
+    P->m_val = Not{std::move(Operand)};
     P->m_loc = Loc;
     return P;
   }
 };
 
-/// A parsed function contract for M1 ECSL annotations.
+/// A parsed function contract for ECSL annotations.
 ///
 /// Represents the contract attached to a single FunctionDecl. A contract
 /// consists of zero or more requires/ensures clauses and an optional
@@ -308,8 +277,7 @@ struct ECSLFunctionContract {
     SourceRange m_loc;
   };
 
-  /// An assigns \nothing clause.  M1 supports only \nothing (no location
-  /// list); the full location grammar is introduced in M2.
+  /// An assigns \nothing clause.
   struct AssignsNothingClause {
     SourceRange m_loc;
   };

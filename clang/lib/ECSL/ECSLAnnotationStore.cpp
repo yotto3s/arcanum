@@ -14,15 +14,15 @@
 using namespace clang;
 using namespace clang::ecsl;
 
-void ECSLAnnotationStore::addForDecl(const Decl *D,
-                                     std::vector<PendingAnnotation> Annotations) {
+void ECSLAnnotationStore::addForDecl(
+    const Decl *D, std::vector<PendingAnnotation> Annotations) {
   auto &Slot = DeclAnnotations[D];
   Slot.insert(Slot.end(), std::make_move_iterator(Annotations.begin()),
               std::make_move_iterator(Annotations.end()));
 }
 
-void ECSLAnnotationStore::addForStmt(const Stmt *S,
-                                     std::vector<PendingAnnotation> Annotations) {
+void ECSLAnnotationStore::addForStmt(
+    const Stmt *S, std::vector<PendingAnnotation> Annotations) {
   auto &Slot = StmtAnnotations[S];
   Slot.insert(Slot.end(), std::make_move_iterator(Annotations.begin()),
               std::make_move_iterator(Annotations.end()));

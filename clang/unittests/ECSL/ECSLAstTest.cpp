@@ -9,7 +9,7 @@
 /// \file
 /// Unit tests for ECSLAst.h data structures.
 ///
-/// These tests verify that M1 ECSL AST nodes can be constructed, moved, and
+/// These tests verify that ECSL AST nodes can be constructed, moved, and
 /// queried correctly. They do not require Clang compilation infrastructure.
 ///
 //===----------------------------------------------------------------------===//
@@ -26,24 +26,22 @@ namespace {
 // ECSLTerm
 // ---------------------------------------------------------------------------
 
-TEST(ECSLTermTest, MakeCExprSetsKindAndExpr) {
-  auto expr = ECSLExpr::MakeIntLit(7, SourceRange{});
+TEST(ECSLTermTest, MakeExprSetsKindAndExpr) {
+  auto expr = ECSLExpr::MakeIntLit("7", SourceRange{});
   ECSLExpr *raw = expr.get();
-  ECSLTerm t = ECSLTerm::MakeCExpr(std::move(expr), SourceRange{});
-  EXPECT_EQ(t.m_kind, ECSLTerm::Kind::CExpr);
-  EXPECT_EQ(t.m_c_expr.get(), raw);
+  ECSLTerm t = ECSLTerm::MakeExpr(std::move(expr), SourceRange{});
+  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Expr>(t.m_val));
+  EXPECT_EQ(std::get<ECSLTerm::Expr>(t.m_val).m_expr.get(), raw);
 }
 
 TEST(ECSLTermTest, MakeResultSetsKind) {
   ECSLTerm t = ECSLTerm::MakeResult(SourceRange{});
-  EXPECT_EQ(t.m_kind, ECSLTerm::Kind::Result);
-  EXPECT_EQ(t.m_c_expr, nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(t.m_val));
 }
 
 TEST(ECSLTermTest, MakeNothingSetsKind) {
   ECSLTerm t = ECSLTerm::MakeNothing(SourceRange{});
-  EXPECT_EQ(t.m_kind, ECSLTerm::Kind::Nothing);
-  EXPECT_EQ(t.m_c_expr, nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Nothing>(t.m_val));
 }
 
 // ---------------------------------------------------------------------------
@@ -53,13 +51,13 @@ TEST(ECSLTermTest, MakeNothingSetsKind) {
 TEST(ECSLPredTest, MakeTrue) {
   auto p = ECSLPred::MakeTrue(SourceRange{});
   ASSERT_NE(p, nullptr);
-  EXPECT_EQ(p->m_kind, ECSLPred::Kind::True);
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(p->m_val));
 }
 
 TEST(ECSLPredTest, MakeFalse) {
   auto p = ECSLPred::MakeFalse(SourceRange{});
   ASSERT_NE(p, nullptr);
-  EXPECT_EQ(p->m_kind, ECSLPred::Kind::False);
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::False>(p->m_val));
 }
 
 // ---------------------------------------------------------------------------
@@ -67,35 +65,36 @@ TEST(ECSLPredTest, MakeFalse) {
 // ---------------------------------------------------------------------------
 
 TEST(ECSLPredTest, MakeRelSetsFieldsCorrectly) {
-  auto expr_a = ECSLExpr::MakeIntLit(10, SourceRange{});
-  auto expr_b = ECSLExpr::MakeIntLit(32, SourceRange{});
+  auto expr_a = ECSLExpr::MakeIntLit("10", SourceRange{});
+  auto expr_b = ECSLExpr::MakeIntLit("32", SourceRange{});
   ECSLExpr *raw_a = expr_a.get();
   ECSLExpr *raw_b = expr_b.get();
 
-  ECSLTerm lhs = ECSLTerm::MakeCExpr(std::move(expr_a), SourceRange{});
-  ECSLTerm rhs = ECSLTerm::MakeCExpr(std::move(expr_b), SourceRange{});
+  ECSLTerm lhs = ECSLTerm::MakeExpr(std::move(expr_a), SourceRange{});
+  ECSLTerm rhs = ECSLTerm::MakeExpr(std::move(expr_b), SourceRange{});
 
   auto p = ECSLPred::MakeRel(std::move(lhs), RelOp::Gt, std::move(rhs),
                              SourceRange{});
   ASSERT_NE(p, nullptr);
-  EXPECT_EQ(p->m_kind, ECSLPred::Kind::Rel);
-  EXPECT_EQ(p->m_rel_op, RelOp::Gt);
-  EXPECT_EQ(p->m_lhs.m_c_expr.get(), raw_a);
-  EXPECT_EQ(p->m_rhs.m_c_expr.get(), raw_b);
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(p->m_val));
+  auto &rel = std::get<ECSLPred::Rel>(p->m_val);
+  EXPECT_EQ(rel.m_op, RelOp::Gt);
+  EXPECT_EQ(std::get<ECSLTerm::Expr>(rel.m_lhs.m_val).m_expr.get(), raw_a);
+  EXPECT_EQ(std::get<ECSLTerm::Expr>(rel.m_rhs.m_val).m_expr.get(), raw_b);
 }
 
 TEST(ECSLPredTest, MakeRelAllOps) {
   auto make = [](RelOp op) {
-    return ECSLPred::MakeRel(ECSLTerm::MakeCExpr(nullptr, SourceRange{}), op,
-                             ECSLTerm::MakeCExpr(nullptr, SourceRange{}),
+    return ECSLPred::MakeRel(ECSLTerm::MakeExpr(nullptr, SourceRange{}), op,
+                             ECSLTerm::MakeExpr(nullptr, SourceRange{}),
                              SourceRange{});
   };
-  EXPECT_EQ(make(RelOp::Eq)->m_rel_op, RelOp::Eq);
-  EXPECT_EQ(make(RelOp::Ne)->m_rel_op, RelOp::Ne);
-  EXPECT_EQ(make(RelOp::Lt)->m_rel_op, RelOp::Lt);
-  EXPECT_EQ(make(RelOp::Le)->m_rel_op, RelOp::Le);
-  EXPECT_EQ(make(RelOp::Gt)->m_rel_op, RelOp::Gt);
-  EXPECT_EQ(make(RelOp::Ge)->m_rel_op, RelOp::Ge);
+  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Eq)->m_val).m_op, RelOp::Eq);
+  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Ne)->m_val).m_op, RelOp::Ne);
+  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Lt)->m_val).m_op, RelOp::Lt);
+  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Le)->m_val).m_op, RelOp::Le);
+  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Gt)->m_val).m_op, RelOp::Gt);
+  EXPECT_EQ(std::get<ECSLPred::Rel>(make(RelOp::Ge)->m_val).m_op, RelOp::Ge);
 }
 
 // ---------------------------------------------------------------------------
@@ -107,11 +106,12 @@ TEST(ECSLPredTest, MakeAnd) {
   auto right = ECSLPred::MakeFalse(SourceRange{});
   auto p = ECSLPred::MakeAnd(std::move(left), std::move(right), SourceRange{});
   ASSERT_NE(p, nullptr);
-  EXPECT_EQ(p->m_kind, ECSLPred::Kind::And);
-  ASSERT_NE(p->m_left, nullptr);
-  ASSERT_NE(p->m_right, nullptr);
-  EXPECT_EQ(p->m_left->m_kind, ECSLPred::Kind::True);
-  EXPECT_EQ(p->m_right->m_kind, ECSLPred::Kind::False);
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::And>(p->m_val));
+  auto &and_pred = std::get<ECSLPred::And>(p->m_val);
+  ASSERT_NE(and_pred.m_left, nullptr);
+  ASSERT_NE(and_pred.m_right, nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(and_pred.m_left->m_val));
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::False>(and_pred.m_right->m_val));
 }
 
 TEST(ECSLPredTest, MakeOr) {
@@ -119,16 +119,18 @@ TEST(ECSLPredTest, MakeOr) {
   auto right = ECSLPred::MakeTrue(SourceRange{});
   auto p = ECSLPred::MakeOr(std::move(left), std::move(right), SourceRange{});
   ASSERT_NE(p, nullptr);
-  EXPECT_EQ(p->m_kind, ECSLPred::Kind::Or);
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::Or>(p->m_val));
 }
 
 TEST(ECSLPredTest, MakeNot) {
   auto inner = ECSLPred::MakeTrue(SourceRange{});
   auto p = ECSLPred::MakeNot(std::move(inner), SourceRange{});
   ASSERT_NE(p, nullptr);
-  EXPECT_EQ(p->m_kind, ECSLPred::Kind::Not);
-  ASSERT_NE(p->m_operand, nullptr);
-  EXPECT_EQ(p->m_operand->m_kind, ECSLPred::Kind::True);
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::Not>(p->m_val));
+  auto &not_pred = std::get<ECSLPred::Not>(p->m_val);
+  ASSERT_NE(not_pred.m_operand, nullptr);
+  EXPECT_TRUE(
+      std::holds_alternative<ECSLPred::True>(not_pred.m_operand->m_val));
 }
 
 TEST(ECSLPredTest, NestedAndOrTree) {
@@ -142,9 +144,10 @@ TEST(ECSLPredTest, NestedAndOrTree) {
                                SourceRange{});
 
   ASSERT_NE(root, nullptr);
-  EXPECT_EQ(root->m_kind, ECSLPred::Kind::Or);
-  EXPECT_EQ(root->m_left->m_kind, ECSLPred::Kind::And);
-  EXPECT_EQ(root->m_right->m_kind, ECSLPred::Kind::Not);
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::Or>(root->m_val));
+  auto &or_pred = std::get<ECSLPred::Or>(root->m_val);
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::And>(or_pred.m_left->m_val));
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::Not>(or_pred.m_right->m_val));
 }
 
 // ---------------------------------------------------------------------------
@@ -165,14 +168,14 @@ TEST(ECSLFunctionContractTest, RequiresClauseStoresModAndPred) {
 
   EXPECT_EQ(req.m_mod, ClauseModifier::None);
   ASSERT_NE(req.m_pred, nullptr);
-  EXPECT_EQ(req.m_pred->m_kind, ECSLPred::Kind::True);
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(req.m_pred->m_val));
 }
 
 TEST(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
   // ensures \result == 0
   ECSLTerm result_term = ECSLTerm::MakeResult(SourceRange{});
-  ECSLTerm zero_term = ECSLTerm::MakeCExpr(
-      ECSLExpr::MakeIntLit(0, SourceRange{}), SourceRange{});
+  ECSLTerm zero_term = ECSLTerm::MakeExpr(
+      ECSLExpr::MakeIntLit("0", SourceRange{}), SourceRange{});
   auto pred = ECSLPred::MakeRel(std::move(result_term), RelOp::Eq,
                                 std::move(zero_term), SourceRange{});
 
@@ -180,9 +183,10 @@ TEST(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
   ens.m_pred = std::move(pred);
 
   ASSERT_NE(ens.m_pred, nullptr);
-  EXPECT_EQ(ens.m_pred->m_kind, ECSLPred::Kind::Rel);
-  EXPECT_EQ(ens.m_pred->m_lhs.m_kind, ECSLTerm::Kind::Result);
-  EXPECT_EQ(ens.m_pred->m_rel_op, RelOp::Eq);
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(ens.m_pred->m_val));
+  auto &rel = std::get<ECSLPred::Rel>(ens.m_pred->m_val);
+  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.m_val));
+  EXPECT_EQ(rel.m_op, RelOp::Eq);
 }
 
 TEST(ECSLFunctionContractTest, AssignsNothingClauseOptional) {
@@ -200,11 +204,11 @@ TEST(ECSLFunctionContractTest, ContractWithMultipleClauses) {
   {
     ECSLFunctionContract::RequiresClause req;
     req.m_pred = ECSLPred::MakeRel(
-        ECSLTerm::MakeCExpr(ECSLExpr::MakeIdent("x", SourceRange{}),
-                            SourceRange{}),
+        ECSLTerm::MakeExpr(ECSLExpr::MakeIdent("x", SourceRange{}),
+                           SourceRange{}),
         RelOp::Gt,
-        ECSLTerm::MakeCExpr(ECSLExpr::MakeIntLit(0, SourceRange{}),
-                            SourceRange{}),
+        ECSLTerm::MakeExpr(ECSLExpr::MakeIntLit("0", SourceRange{}),
+                           SourceRange{}),
         SourceRange{});
     c.m_requires.push_back(std::move(req));
   }
@@ -214,8 +218,8 @@ TEST(ECSLFunctionContractTest, ContractWithMultipleClauses) {
     ECSLFunctionContract::EnsuresClause ens;
     ens.m_pred = ECSLPred::MakeRel(
         ECSLTerm::MakeResult(SourceRange{}), RelOp::Gt,
-        ECSLTerm::MakeCExpr(ECSLExpr::MakeIntLit(0, SourceRange{}),
-                            SourceRange{}),
+        ECSLTerm::MakeExpr(ECSLExpr::MakeIntLit("0", SourceRange{}),
+                           SourceRange{}),
         SourceRange{});
     c.m_ensures.push_back(std::move(ens));
   }
@@ -226,8 +230,10 @@ TEST(ECSLFunctionContractTest, ContractWithMultipleClauses) {
   EXPECT_EQ(c.m_requires.size(), 1u);
   EXPECT_EQ(c.m_ensures.size(), 1u);
   EXPECT_TRUE(c.m_assigns_nothing.has_value());
-  EXPECT_EQ(c.m_requires[0].m_pred->m_kind, ECSLPred::Kind::Rel);
-  EXPECT_EQ(c.m_ensures[0].m_pred->m_lhs.m_kind, ECSLTerm::Kind::Result);
+  EXPECT_TRUE(
+      std::holds_alternative<ECSLPred::Rel>(c.m_requires[0].m_pred->m_val));
+  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(
+      std::get<ECSLPred::Rel>(c.m_ensures[0].m_pred->m_val).m_lhs.m_val));
 }
 
 // ---------------------------------------------------------------------------
@@ -247,83 +253,92 @@ TEST(ECSLPredTest, MoveConstruction) {
 // ---------------------------------------------------------------------------
 
 TEST(ECSLExprTest, MakeIntLit) {
-  auto e = ECSLExpr::MakeIntLit(42, SourceRange{});
+  auto e = ECSLExpr::MakeIntLit("42", SourceRange{});
   ASSERT_NE(e, nullptr);
-  EXPECT_EQ(e->m_kind, ECSLExpr::Kind::IntLit);
-  EXPECT_EQ(e->m_int_val, 42);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::IntLit>(e->m_val));
+  EXPECT_EQ(std::get<ECSLExpr::IntLit>(e->m_val).m_val, "42");
 }
 
 TEST(ECSLExprTest, MakeBoolLit) {
   auto t = ECSLExpr::MakeBoolLit(true, SourceRange{});
   auto f = ECSLExpr::MakeBoolLit(false, SourceRange{});
-  EXPECT_EQ(t->m_kind, ECSLExpr::Kind::BoolLit);
-  EXPECT_TRUE(t->m_bool_val);
-  EXPECT_FALSE(f->m_bool_val);
+  EXPECT_TRUE(std::holds_alternative<ECSLExpr::BoolLit>(t->m_val));
+  EXPECT_TRUE(std::get<ECSLExpr::BoolLit>(t->m_val).m_val);
+  EXPECT_FALSE(std::get<ECSLExpr::BoolLit>(f->m_val).m_val);
 }
 
 TEST(ECSLExprTest, MakeIdent) {
   auto e = ECSLExpr::MakeIdent("x", SourceRange{});
   ASSERT_NE(e, nullptr);
-  EXPECT_EQ(e->m_kind, ECSLExpr::Kind::Ident);
-  EXPECT_EQ(e->m_name, "x");
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::Ident>(e->m_val));
+  EXPECT_EQ(std::get<ECSLExpr::Ident>(e->m_val).m_name, "x");
 }
 
 TEST(ECSLExprTest, MakeBinOp) {
-  auto lhs = ECSLExpr::MakeIntLit(1, SourceRange{});
-  auto rhs = ECSLExpr::MakeIntLit(2, SourceRange{});
+  auto lhs = ECSLExpr::MakeIntLit("1", SourceRange{});
+  auto rhs = ECSLExpr::MakeIntLit("2", SourceRange{});
   ECSLExpr *raw_lhs = lhs.get();
   ECSLExpr *raw_rhs = rhs.get();
   auto e = ECSLExpr::MakeBinOp(ExprOp::Add, std::move(lhs), std::move(rhs),
                                SourceRange{});
   ASSERT_NE(e, nullptr);
-  EXPECT_EQ(e->m_kind, ECSLExpr::Kind::BinOp);
-  EXPECT_EQ(e->m_op, ExprOp::Add);
-  EXPECT_EQ(e->m_lhs.get(), raw_lhs);
-  EXPECT_EQ(e->m_rhs.get(), raw_rhs);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::BinOp>(e->m_val));
+  auto &binop = std::get<ECSLExpr::BinOp>(e->m_val);
+  EXPECT_EQ(binop.m_op, ExprOp::Add);
+  EXPECT_EQ(binop.m_lhs.get(), raw_lhs);
+  EXPECT_EQ(binop.m_rhs.get(), raw_rhs);
 }
 
 TEST(ECSLExprTest, MakeBinOpAllOps) {
   auto make = [](ExprOp op) {
-    return ECSLExpr::MakeBinOp(op, ECSLExpr::MakeIntLit(0, SourceRange{}),
-                               ECSLExpr::MakeIntLit(0, SourceRange{}),
+    return ECSLExpr::MakeBinOp(op, ECSLExpr::MakeIntLit("0", SourceRange{}),
+                               ECSLExpr::MakeIntLit("0", SourceRange{}),
                                SourceRange{});
   };
-  EXPECT_EQ(make(ExprOp::Add)->m_op, ExprOp::Add);
-  EXPECT_EQ(make(ExprOp::Sub)->m_op, ExprOp::Sub);
-  EXPECT_EQ(make(ExprOp::Mul)->m_op, ExprOp::Mul);
-  EXPECT_EQ(make(ExprOp::Div)->m_op, ExprOp::Div);
-  EXPECT_EQ(make(ExprOp::Mod)->m_op, ExprOp::Mod);
+  EXPECT_EQ(std::get<ECSLExpr::BinOp>(make(ExprOp::Add)->m_val).m_op,
+            ExprOp::Add);
+  EXPECT_EQ(std::get<ECSLExpr::BinOp>(make(ExprOp::Sub)->m_val).m_op,
+            ExprOp::Sub);
+  EXPECT_EQ(std::get<ECSLExpr::BinOp>(make(ExprOp::Mul)->m_val).m_op,
+            ExprOp::Mul);
+  EXPECT_EQ(std::get<ECSLExpr::BinOp>(make(ExprOp::Div)->m_val).m_op,
+            ExprOp::Div);
+  EXPECT_EQ(std::get<ECSLExpr::BinOp>(make(ExprOp::Mod)->m_val).m_op,
+            ExprOp::Mod);
 }
 
 TEST(ECSLExprTest, MakeUnary) {
-  auto operand = ECSLExpr::MakeIntLit(5, SourceRange{});
+  auto operand = ECSLExpr::MakeIntLit("5", SourceRange{});
   ECSLExpr *raw = operand.get();
   auto e = ECSLExpr::MakeUnary(ExprOp::Neg, std::move(operand), SourceRange{});
   ASSERT_NE(e, nullptr);
-  EXPECT_EQ(e->m_kind, ECSLExpr::Kind::UnaryOp);
-  EXPECT_EQ(e->m_op, ExprOp::Neg);
-  EXPECT_EQ(e->m_lhs.get(), raw);
-  EXPECT_EQ(e->m_rhs, nullptr);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::UnaryOp>(e->m_val));
+  auto &unary = std::get<ECSLExpr::UnaryOp>(e->m_val);
+  EXPECT_EQ(unary.m_op, ExprOp::Neg);
+  EXPECT_EQ(unary.m_operand.get(), raw);
 }
 
 TEST(ECSLExprTest, NestedBinOp) {
   // (1 + 2) * 3
   auto inner = ECSLExpr::MakeBinOp(
-      ExprOp::Add, ECSLExpr::MakeIntLit(1, SourceRange{}),
-      ECSLExpr::MakeIntLit(2, SourceRange{}), SourceRange{});
+      ExprOp::Add, ECSLExpr::MakeIntLit("1", SourceRange{}),
+      ECSLExpr::MakeIntLit("2", SourceRange{}), SourceRange{});
   auto outer = ECSLExpr::MakeBinOp(ExprOp::Mul, std::move(inner),
-                                   ECSLExpr::MakeIntLit(3, SourceRange{}),
+                                   ECSLExpr::MakeIntLit("3", SourceRange{}),
                                    SourceRange{});
   ASSERT_NE(outer, nullptr);
-  EXPECT_EQ(outer->m_kind, ECSLExpr::Kind::BinOp);
-  EXPECT_EQ(outer->m_op, ExprOp::Mul);
-  ASSERT_NE(outer->m_lhs, nullptr);
-  EXPECT_EQ(outer->m_lhs->m_kind, ECSLExpr::Kind::BinOp);
-  EXPECT_EQ(outer->m_lhs->m_op, ExprOp::Add);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::BinOp>(outer->m_val));
+  auto &outer_binop = std::get<ECSLExpr::BinOp>(outer->m_val);
+  EXPECT_EQ(outer_binop.m_op, ExprOp::Mul);
+  ASSERT_NE(outer_binop.m_lhs, nullptr);
+  ASSERT_TRUE(
+      std::holds_alternative<ECSLExpr::BinOp>(outer_binop.m_lhs->m_val));
+  EXPECT_EQ(std::get<ECSLExpr::BinOp>(outer_binop.m_lhs->m_val).m_op,
+            ExprOp::Add);
 }
 
 TEST(ECSLExprTest, MoveConstruction) {
-  auto e1 = ECSLExpr::MakeIntLit(99, SourceRange{});
+  auto e1 = ECSLExpr::MakeIntLit("99", SourceRange{});
   ECSLExpr *raw = e1.get();
   auto e2 = std::move(e1);
   EXPECT_EQ(e1, nullptr); // NOLINT: moved-from

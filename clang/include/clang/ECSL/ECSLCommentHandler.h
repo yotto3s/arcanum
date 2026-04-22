@@ -65,9 +65,7 @@ public:
   std::vector<PendingAnnotation> takePending();
 
   /// Return a read-only view of the pending annotations.
-  llvm::ArrayRef<PendingAnnotation> getPending() const {
-    return m_pending;
-  }
+  llvm::ArrayRef<PendingAnnotation> getPending() const { return m_pending; }
 
 private:
   std::vector<PendingAnnotation> m_pending;
