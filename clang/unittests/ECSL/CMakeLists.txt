@@ -3,6 +3,7 @@ add_clang_unittest(ECSLTests
   ECSLAstTest.cpp
   ECSLCommentHandlerTest.cpp
   ECSLDeclDispatchTest.cpp
+  ECSLLexerTest.cpp
   ECSLStmtDispatchTest.cpp
   CLANG_LIBS
   clangAST
