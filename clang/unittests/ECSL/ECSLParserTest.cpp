@@ -103,7 +103,7 @@ TEST(ECSLParserTest, ParseRequiresNegation) {
   auto &not_pred = std::get<ECSLPred::Not>(pred->Val());
   ASSERT_NE(not_pred.m_operand.get(), nullptr);
   EXPECT_TRUE(
-      std::holds_alternative<ECSLPred::CExpr>(not_pred.m_operand->Val()));
+      std::holds_alternative<ECSLPred::BoolExpr>(not_pred.m_operand->Val()));
 }
 
 // ---------------------------------------------------------------------------
@@ -270,8 +270,8 @@ TEST(ECSLParserTest, ParseResultTerm) {
   EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.Val()));
 }
 
-TEST(ECSLParserTest, ParseCExprTerm) {
-  // The plain C identifier "x" is a CExpr term.
+TEST(ECSLParserTest, ParseBoolExprTerm) {
+  // The plain identifier "x" is a BoolExpr term.
   auto result = Parse("requires x > 0;");
   ASSERT_TRUE(result.has_value());
   auto &rel =

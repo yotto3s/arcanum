@@ -445,7 +445,7 @@ private:
             std::get<ECSLTerm::Expr>(lhs.Val()));
         cexpr = std::move(inner.m_expr);
       }
-      return ECSLPred::MakeCExpr(std::move(cexpr), range);
+      return ECSLPred::MakeBoolExpr(std::move(cexpr), range);
     }
 
     Consume(); // consume rel-op

@@ -188,25 +188,25 @@ struct ECSLPred {
   struct Not {
     std::unique_ptr<ECSLPred> m_operand;
   };
-  /// A bare C expression used as a boolean predicate, e.g. the inner
+  /// A bare expression used as a boolean predicate, e.g. the inner
   /// predicate in `requires !flag;` where `flag` has no relational operator.
-  struct CExpr {
+  struct BoolExpr {
     std::unique_ptr<ECSLExpr> m_expr;
   };
 
 private:
-  std::variant<True, False, Rel, And, Or, Not, CExpr> m_val;
+  std::variant<True, False, Rel, And, Or, Not, BoolExpr> m_val;
   SourceRange m_loc;
 
 public:
-  ECSLPred(std::variant<True, False, Rel, And, Or, Not, CExpr> Val,
+  ECSLPred(std::variant<True, False, Rel, And, Or, Not, BoolExpr> Val,
            SourceRange Loc)
       : m_val(std::move(Val)), m_loc(Loc) {}
   ~ECSLPred() = default;
   ECSLPred(ECSLPred &&) = default;
   ECSLPred &operator=(ECSLPred &&) = default;
 
-  const std::variant<True, False, Rel, And, Or, Not, CExpr> &Val() const {
+  const std::variant<True, False, Rel, And, Or, Not, BoolExpr> &Val() const {
     return m_val;
   }
   SourceRange Loc() const { return m_loc; }
@@ -244,9 +244,9 @@ public:
     return std::make_unique<ECSLPred>(Not{std::move(Operand)}, Loc);
   }
 
-  static std::unique_ptr<ECSLPred> MakeCExpr(std::unique_ptr<ECSLExpr> E,
-                                             SourceRange Loc) {
-    return std::make_unique<ECSLPred>(CExpr{std::move(E)}, Loc);
+  static std::unique_ptr<ECSLPred> MakeBoolExpr(std::unique_ptr<ECSLExpr> E,
+                                                SourceRange Loc) {
+    return std::make_unique<ECSLPred>(BoolExpr{std::move(E)}, Loc);
   }
 };
 
