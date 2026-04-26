@@ -188,19 +188,25 @@ struct ECSLPred {
   struct Not {
     std::unique_ptr<ECSLPred> m_operand;
   };
+  /// A bare C expression used as a boolean predicate, e.g. the inner
+  /// predicate in `requires !flag;` where `flag` has no relational operator.
+  struct CExpr {
+    std::unique_ptr<ECSLExpr> m_expr;
+  };
 
 private:
-  std::variant<True, False, Rel, And, Or, Not> m_val;
+  std::variant<True, False, Rel, And, Or, Not, CExpr> m_val;
   SourceRange m_loc;
 
 public:
-  ECSLPred(std::variant<True, False, Rel, And, Or, Not> Val, SourceRange Loc)
+  ECSLPred(std::variant<True, False, Rel, And, Or, Not, CExpr> Val,
+           SourceRange Loc)
       : m_val(std::move(Val)), m_loc(Loc) {}
   ~ECSLPred() = default;
   ECSLPred(ECSLPred &&) = default;
   ECSLPred &operator=(ECSLPred &&) = default;
 
-  const std::variant<True, False, Rel, And, Or, Not> &Val() const {
+  const std::variant<True, False, Rel, And, Or, Not, CExpr> &Val() const {
     return m_val;
   }
   SourceRange Loc() const { return m_loc; }
@@ -236,6 +242,11 @@ public:
   static std::unique_ptr<ECSLPred> MakeNot(std::unique_ptr<ECSLPred> Operand,
                                            SourceRange Loc) {
     return std::make_unique<ECSLPred>(Not{std::move(Operand)}, Loc);
+  }
+
+  static std::unique_ptr<ECSLPred> MakeCExpr(std::unique_ptr<ECSLExpr> E,
+                                             SourceRange Loc) {
+    return std::make_unique<ECSLPred>(CExpr{std::move(E)}, Loc);
   }
 };
 
@@ -283,6 +294,9 @@ struct ECSLFunctionContract {
   size_t EnsuresCount() const { return m_ensures.size(); }
   bool HasAssignsNothing() const { return m_assigns_nothing.has_value(); }
   SourceRange Loc() const { return m_loc; }
+
+  const RequiresClause &RequiresAt(size_t I) const { return m_requires[I]; }
+  const EnsuresClause &EnsuresAt(size_t I) const { return m_ensures[I]; }
 
 private:
   std::vector<RequiresClause> m_requires;
