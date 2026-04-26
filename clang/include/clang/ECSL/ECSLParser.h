@@ -1,4 +1,4 @@
-//===- clang/ECSL/ECSLParser.h - ECSL annotation parser (M1) --------------===//
+//===- clang/ECSL/ECSLParser.h - ECSL annotation parser --------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,18 +7,14 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// Declares the M1 ECSL annotation recursive-descent parser.
+/// Declares the ECSL annotation recursive-descent parser.
 ///
-/// ECSLParser handles the M1 clause set:
+/// ECSLParser handles:
 ///   requires <pred>;  ensures <pred>;  assigns \nothing;
 ///
 /// Predicates support:  ==, !=, <, <=, >, >=, &&, ||, !
 /// Terms support:       \result, \nothing, C expressions
-/// Arithmetic (+, -, *, /, %) inside C terms is parsed by ECSL's own
-/// recursive-descent C expression parser, producing ECSLExpr trees.
-///
-/// Layering: clangECSL must NOT depend on clangParse.  ECSLParser only uses
-/// clangBasic and clangLex headers.  No Clang expression delegation.
+/// Arithmetic (+, -, *, /, %) inside C terms is parsed into ECSLExpr trees.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -36,34 +32,35 @@ class DiagnosticsEngine;
 
 namespace ecsl {
 
-/// Parses ECSL annotation bodies for M1 function contracts.
+/// Parses ECSL annotation bodies.
 ///
-/// Instantiate once; call ParseFunctionContract for each annotation.
-/// Thread-hostile: state is per-call, but the object must not be used
-/// concurrently from multiple threads.
+/// Stateless parser front-end.  Instantiate once and call
+/// ParseFunctionContract for each annotation; parsing state is created
+/// per call.
 class ECSLParser {
 public:
   ECSLParser() = default;
 
-  /// Parse \p Text as an M1 function contract annotation.
+  /// Parse \p Text as a function contract annotation.
   ///
   /// \param Text  Raw annotation body (comment delimiters already stripped).
-  /// \param Loc   Source location of the annotation's opening delimiter.
+  /// \param Loc   Source location of the first character of \p Text.
+  ///              Pass an invalid SourceLocation to suppress location info.
   /// \param Diags Optional diagnostics engine; null means errors are silent.
   ///
-  /// Returns std::nullopt only on a fatal structural error (e.g. no valid
-  /// clauses and an unrecoverable token stream).  On recoverable errors the
-  /// parser skips to the next ';' and continues; the returned contract may be
-  /// partial.
+  /// Returns std::nullopt when no valid clause was parsed (empty body,
+  /// whitespace-only, or all-garbage token stream).  On recoverable clause
+  /// errors the parser skips to the next ';' and continues; the returned
+  /// contract may be partial.
   std::optional<ECSLFunctionContract>
   ParseFunctionContract(llvm::StringRef Text, SourceLocation Loc,
                         DiagnosticsEngine *Diags = nullptr);
 };
 
-/// Compatibility entry point used by the clangParse dispatch hooks (PR 4/4).
+/// Compatibility entry point used by the clangParse dispatch hooks.
+/// \todo Wire in typed contract storage once the annotation store supports it.
 /// Calls ParseFunctionContract for validation; always returns the original
-/// PendingAnnotation unchanged so the raw store stays populated until PR 4/4
-/// wires in typed contract storage.
+/// PendingAnnotation unchanged so the raw store stays populated.
 PendingAnnotation parseECSLAnnotation(PendingAnnotation PA);
 
 } // namespace ecsl

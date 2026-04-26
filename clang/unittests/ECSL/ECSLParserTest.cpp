@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// Unit tests for ECSLParser (M1 function contract grammar).
+/// Unit tests for ECSLParser.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -29,19 +29,28 @@ static std::optional<ECSLFunctionContract> Parse(llvm::StringRef text) {
                                       /*Diags=*/nullptr);
 }
 
+/// Test fixture providing the Parse() helper.
+class ECSLParserFixture : public ::testing::Test {
+protected:
+  static std::optional<ECSLFunctionContract> Parse(llvm::StringRef text) {
+    ECSLParser parser;
+    return parser.ParseFunctionContract(text, SourceLocation{}, nullptr);
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Empty / non-contract input
 // ---------------------------------------------------------------------------
 
-TEST(ECSLParserTest, EmptyBodyReturnsNullopt) {
+TEST_F(ECSLParserFixture, EmptyBodyReturnsNullopt) {
   EXPECT_FALSE(Parse("").has_value());
 }
 
-TEST(ECSLParserTest, WhitespaceOnlyReturnsNullopt) {
+TEST_F(ECSLParserFixture, WhitespaceOnlyReturnsNullopt) {
   EXPECT_FALSE(Parse("   ").has_value());
 }
 
-TEST(ECSLParserTest, GarbageTokensReturnsNullopt) {
+TEST_F(ECSLParserFixture, GarbageTokensReturnsNullopt) {
   // The parser skips bad tokens via error recovery; no valid clause → nullopt.
   EXPECT_FALSE(Parse("xyzzy 123").has_value());
 }
@@ -50,7 +59,7 @@ TEST(ECSLParserTest, GarbageTokensReturnsNullopt) {
 // requires clause
 // ---------------------------------------------------------------------------
 
-TEST(ECSLParserTest, ParseRequiresSimple) {
+TEST_F(ECSLParserFixture, ParseRequiresSimple) {
   auto result = Parse("requires x > 0;");
   ASSERT_TRUE(result.has_value());
   ASSERT_EQ(result->RequiresCount(), 1u);
@@ -92,7 +101,7 @@ INSTANTIATE_TEST_SUITE_P(
                       RelOpCase{"requires x < 5;", RelOp::Lt},
                       RelOpCase{"requires x > 0;", RelOp::Gt}));
 
-TEST(ECSLParserTest, ParseRequiresNegation) {
+TEST_F(ECSLParserFixture, ParseRequiresNegation) {
   auto result = Parse("requires !flag;");
   ASSERT_TRUE(result.has_value());
   ASSERT_EQ(result->RequiresCount(), 1u);
@@ -110,7 +119,7 @@ TEST(ECSLParserTest, ParseRequiresNegation) {
 // ensures clause
 // ---------------------------------------------------------------------------
 
-TEST(ECSLParserTest, ParseEnsuresResult) {
+TEST_F(ECSLParserFixture, ParseEnsuresResult) {
   auto result = Parse("ensures \\result > 0;");
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->RequiresCount(), 0u);
@@ -124,7 +133,7 @@ TEST(ECSLParserTest, ParseEnsuresResult) {
   EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.Val()));
 }
 
-TEST(ECSLParserTest, ParseEnsuresResultEqArithmetic) {
+TEST_F(ECSLParserFixture, ParseEnsuresResultEqArithmetic) {
   // ensures \result == x + y;
   auto result = Parse("ensures \\result == x + y;");
   ASSERT_TRUE(result.has_value());
@@ -148,7 +157,7 @@ TEST(ECSLParserTest, ParseEnsuresResultEqArithmetic) {
 // assigns \nothing
 // ---------------------------------------------------------------------------
 
-TEST(ECSLParserTest, ParseAssignsNothing) {
+TEST_F(ECSLParserFixture, ParseAssignsNothing) {
   auto result = Parse("assigns \\nothing;");
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->RequiresCount(), 0u);
@@ -160,7 +169,7 @@ TEST(ECSLParserTest, ParseAssignsNothing) {
 // Multiple clauses
 // ---------------------------------------------------------------------------
 
-TEST(ECSLParserTest, ParseMultipleClauses) {
+TEST_F(ECSLParserFixture, ParseMultipleClauses) {
   const char *ann = "requires x > 0; ensures \\result > 0; assigns \\nothing;";
   auto result = Parse(ann);
   ASSERT_TRUE(result.has_value());
@@ -169,13 +178,13 @@ TEST(ECSLParserTest, ParseMultipleClauses) {
   EXPECT_TRUE(result->HasAssignsNothing());
 }
 
-TEST(ECSLParserTest, ParseMultipleRequiresClauses) {
+TEST_F(ECSLParserFixture, ParseMultipleRequiresClauses) {
   auto result = Parse("requires x > 0; requires y > 0;");
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->RequiresCount(), 2u);
 }
 
-TEST(ECSLParserTest, ParseMultipleEnsuresClauses) {
+TEST_F(ECSLParserFixture, ParseMultipleEnsuresClauses) {
   auto result = Parse("ensures \\result > 0; ensures \\result < 100;");
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->EnsuresCount(), 2u);
@@ -185,7 +194,7 @@ TEST(ECSLParserTest, ParseMultipleEnsuresClauses) {
 // Logical connectives
 // ---------------------------------------------------------------------------
 
-TEST(ECSLParserTest, ParseLogicalAnd) {
+TEST_F(ECSLParserFixture, ParseLogicalAnd) {
   auto result = Parse("requires x > 0 && y > 0;");
   ASSERT_TRUE(result.has_value());
   ASSERT_EQ(result->RequiresCount(), 1u);
@@ -200,14 +209,14 @@ TEST(ECSLParserTest, ParseLogicalAnd) {
   EXPECT_TRUE(std::holds_alternative<ECSLPred::Rel>(and_pred.m_right->Val()));
 }
 
-TEST(ECSLParserTest, ParseLogicalOr) {
+TEST_F(ECSLParserFixture, ParseLogicalOr) {
   auto result = Parse("requires x > 0 || y > 0;");
   ASSERT_TRUE(result.has_value());
   ASSERT_TRUE(
       std::holds_alternative<ECSLPred::Or>(result->RequiresAt(0).m_pred->Val()));
 }
 
-TEST(ECSLParserTest, ParseAndBindsTighterThanOr) {
+TEST_F(ECSLParserFixture, ParseAndBindsTighterThanOr) {
   // requires a || b && c;  →  a || (b && c)
   auto result = Parse("requires a || b && c;");
   ASSERT_TRUE(result.has_value());
@@ -220,7 +229,7 @@ TEST(ECSLParserTest, ParseAndBindsTighterThanOr) {
       << "right child of Or should be And";
 }
 
-TEST(ECSLParserTest, ParseLogicalChain) {
+TEST_F(ECSLParserFixture, ParseLogicalChain) {
   // requires x > 0 && y < 5 && z != 0;  →  (x>0 && y<5) && z!=0
   auto result = Parse("requires x > 0 && y < 5 && z != 0;");
   ASSERT_TRUE(result.has_value());
@@ -235,7 +244,7 @@ TEST(ECSLParserTest, ParseLogicalChain) {
 // Parenthesised predicates
 // ---------------------------------------------------------------------------
 
-TEST(ECSLParserTest, ParseParenthesisedPredicate) {
+TEST_F(ECSLParserFixture, ParseParenthesisedPredicate) {
   // requires (x > 0) && (y > 0);
   auto result = Parse("requires (x > 0) && (y > 0);");
   ASSERT_TRUE(result.has_value());
@@ -243,7 +252,7 @@ TEST(ECSLParserTest, ParseParenthesisedPredicate) {
       std::holds_alternative<ECSLPred::And>(result->RequiresAt(0).m_pred->Val()));
 }
 
-TEST(ECSLParserTest, ParseParenthesisedCTermBeforeRelOp) {
+TEST_F(ECSLParserFixture, ParseParenthesisedCTermBeforeRelOp) {
   // requires (x + y) > 0;
   // The '(x + y)' is a C term, not a grouped predicate, because '>' follows.
   auto result = Parse("requires (x + y) > 0;");
@@ -261,7 +270,7 @@ TEST(ECSLParserTest, ParseParenthesisedCTermBeforeRelOp) {
 // Term kinds
 // ---------------------------------------------------------------------------
 
-TEST(ECSLParserTest, ParseResultTerm) {
+TEST_F(ECSLParserFixture, ParseResultTerm) {
   auto result = Parse("ensures \\result >= 0;");
   ASSERT_TRUE(result.has_value());
   ASSERT_EQ(result->EnsuresCount(), 1u);
@@ -270,8 +279,8 @@ TEST(ECSLParserTest, ParseResultTerm) {
   EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.Val()));
 }
 
-TEST(ECSLParserTest, ParseBoolExprTerm) {
-  // The plain identifier "x" is a BoolExpr term.
+TEST_F(ECSLParserFixture, ParseExprTermInRelPred) {
+  // The plain identifier "x" and integer "0" are Expr terms in a Rel predicate.
   auto result = Parse("requires x > 0;");
   ASSERT_TRUE(result.has_value());
   auto &rel =
@@ -280,18 +289,32 @@ TEST(ECSLParserTest, ParseBoolExprTerm) {
   EXPECT_TRUE(std::holds_alternative<ECSLTerm::Expr>(rel.m_rhs.Val()));
 }
 
+TEST_F(ECSLParserFixture, ParseBareBoolExprPred) {
+  // "requires !flag;" — the inner "flag" is a bare BoolExpr predicate.
+  auto result = Parse("requires !flag;");
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(result->RequiresCount(), 1u);
+  const auto *pred = result->RequiresAt(0).m_pred.get();
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::Not>(pred->Val()));
+  const auto &not_pred = std::get<ECSLPred::Not>(pred->Val());
+  ASSERT_NE(not_pred.m_operand.get(), nullptr);
+  EXPECT_TRUE(
+      std::holds_alternative<ECSLPred::BoolExpr>(not_pred.m_operand->Val()));
+}
+
 // ---------------------------------------------------------------------------
 // Error recovery
 // ---------------------------------------------------------------------------
 
-TEST(ECSLParserTest, UnknownClauseKeywordSkipped) {
-  // "ensurse" is a typo — parser should skip and parse subsequent clauses.
+TEST_F(ECSLParserFixture, UnknownClauseKeywordSkipped) {
+  // "ensurse" is a typo — parser should skip it and recover to the later
+  // valid requires clause.
   auto result = Parse("ensurse \\result > 0; requires x > 0;");
-  // No crash is the primary test; the requires clause may or may not recover.
-  (void)result;
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->RequiresCount(), 1u);
 }
 
-TEST(ECSLParserTest, AssignsNonNothingSkipped) {
+TEST_F(ECSLParserFixture, AssignsNonNothingSkipped) {
   // "assigns x;" is not valid in M1.  Parser should skip and continue.
   auto result = Parse("assigns x; requires p > 0;");
   if (result.has_value()) {
@@ -299,7 +322,7 @@ TEST(ECSLParserTest, AssignsNonNothingSkipped) {
   }
 }
 
-TEST(ECSLParserTest, MultilineAnnotation) {
+TEST_F(ECSLParserFixture, MultilineAnnotation) {
   const char *ann = "requires x > 0;\n"
                     "ensures \\result > 0;\n"
                     "assigns \\nothing;\n";

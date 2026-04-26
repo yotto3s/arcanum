@@ -1,4 +1,4 @@
-//===- clang/ECSL/ECSLParser.cpp - ECSL annotation parser (M1) ------------===//
+//===- clang/ECSL/ECSLParser.cpp - ECSL annotation parser ------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -42,14 +42,6 @@ static bool IsClauseBoundary(ECSLTokenKind k) {
   }
 }
 
-/// Returns true if \p k is a clause-start Identifier text.
-static bool IsClauseKeyword(const ECSLToken &tok) {
-  if (tok.m_kind != ECSLTokenKind::Identifier)
-    return false;
-  llvm::StringRef t = tok.m_text;
-  return t == "requires" || t == "ensures" || t == "assigns";
-}
-
 // ---------------------------------------------------------------------------
 // ECSL C expression sub-parser
 // ---------------------------------------------------------------------------
@@ -65,12 +57,12 @@ static bool IsClauseKeyword(const ECSLToken &tok) {
 ///   add-sub  := mul-div (('+' | '-') mul-div)*
 ///   mul-div  := unary   (('*' | '/' | '%') unary)*
 ///   unary    := '-' unary | primary
-///   primary  := int-literal | float-literal | 'true' | 'false' | identifier
-///             | '(' expr ')'
+///   primary  := int-literal | 'true' | 'false' | identifier | '(' expr ')'
 class ECSLExprParser {
 public:
-  explicit ECSLExprParser(llvm::ArrayRef<ECSLToken> tokens)
-      : m_tokens(tokens) {}
+  explicit ECSLExprParser(llvm::ArrayRef<ECSLToken> tokens,
+                          SourceLocation base_loc)
+      : m_tokens(tokens), m_base_loc(base_loc) {}
 
   std::unique_ptr<ECSLExpr> ParseExpr() { return ParseAddSub(); }
 
@@ -86,10 +78,21 @@ private:
   }
 
   ECSLToken Consume() {
+    assert(!AtEnd());
     ECSLToken tok = m_tokens[m_pos];
-    if (m_pos + 1 < m_tokens.size())
-      ++m_pos;
+    ++m_pos;
     return tok;
+  }
+
+  SourceLocation LocOf(unsigned offset) const {
+    if (!m_base_loc.isValid())
+      return SourceLocation{};
+    return m_base_loc.getLocWithOffset(static_cast<int>(offset));
+  }
+
+  SourceRange LocRange(const ECSLToken &tok) const {
+    return SourceRange(LocOf(tok.m_offset),
+                       LocOf(tok.m_offset + tok.m_text.size()));
   }
 
   std::unique_ptr<ECSLExpr> ParseAddSub() {
@@ -105,11 +108,7 @@ private:
         op = ExprOp::Sub;
       else
         break;
-      ECSLToken tok = Consume();
-      SourceRange tok_loc(
-          SourceLocation{}.getLocWithOffset(tok.m_offset),
-          SourceLocation{}.getLocWithOffset(tok.m_offset + tok.m_text.size()));
-      (void)tok_loc;
+      Consume();
       auto rhs = ParseMulDiv();
       if (!rhs)
         break;
@@ -147,8 +146,7 @@ private:
   std::unique_ptr<ECSLExpr> ParseUnary() {
     if (!AtEnd() && Current().m_kind == ECSLTokenKind::Minus) {
       ECSLToken tok = Consume();
-      SourceLocation start =
-          SourceLocation{}.getLocWithOffset(tok.m_offset);
+      SourceLocation start = LocOf(tok.m_offset);
       auto operand = ParseUnary();
       if (!operand)
         return nullptr;
@@ -164,20 +162,17 @@ private:
 
     const ECSLToken &tok = Current();
 
-    if (tok.m_kind == ECSLTokenKind::IntegerLiteral ||
-        tok.m_kind == ECSLTokenKind::FloatLiteral) {
+    if (tok.m_kind == ECSLTokenKind::FloatLiteral)
+      return nullptr; // \todo float literals not yet supported
+
+    if (tok.m_kind == ECSLTokenKind::IntegerLiteral) {
       Consume();
-      SourceRange loc(
-          SourceLocation{}.getLocWithOffset(tok.m_offset),
-          SourceLocation{}.getLocWithOffset(tok.m_offset + tok.m_text.size()));
-      return ECSLExpr::MakeIntLit(tok.m_text.str(), loc);
+      return ECSLExpr::MakeIntLit(tok.m_text.str(), LocRange(tok));
     }
 
     if (tok.m_kind == ECSLTokenKind::Identifier) {
       Consume();
-      SourceRange loc(
-          SourceLocation{}.getLocWithOffset(tok.m_offset),
-          SourceLocation{}.getLocWithOffset(tok.m_offset + tok.m_text.size()));
+      SourceRange loc = LocRange(tok);
       if (tok.m_text == "true")
         return ECSLExpr::MakeBoolLit(true, loc);
       if (tok.m_text == "false")
@@ -198,6 +193,7 @@ private:
 
   llvm::ArrayRef<ECSLToken> m_tokens;
   unsigned m_pos = 0;
+  SourceLocation m_base_loc;
 };
 
 // ---------------------------------------------------------------------------
@@ -355,9 +351,6 @@ private:
       // At depth 0, stop at ECSL predicate boundary tokens.
       if (depth == 0 && IsClauseBoundary(k))
         break;
-      // Clause keywords (Identifier "requires" etc.) always stop a term.
-      if (depth == 0 && IsClauseKeyword(Current()))
-        break;
 
       ++m_pos;
     }
@@ -368,7 +361,8 @@ private:
     }
 
     llvm::ArrayRef<ECSLToken> span(m_tokens.data() + start, m_pos - start);
-    std::unique_ptr<ECSLExpr> expr = ECSLExprParser(span).ParseExpr();
+    std::unique_ptr<ECSLExpr> expr =
+        ECSLExprParser(span, m_base_loc).ParseExpr();
 
     SourceRange range(LocStart(m_tokens[start]),
                       LocEnd(m_tokens[m_pos > start ? m_pos - 1 : start]));
@@ -439,12 +433,8 @@ private:
       // Bare term used as a boolean predicate (e.g. a plain identifier).
       SourceRange range(start_loc, lhs.Loc().getEnd());
       std::unique_ptr<ECSLExpr> cexpr;
-      if (std::holds_alternative<ECSLTerm::Expr>(lhs.Val())) {
-        // lhs is our local; const_cast is safe — the variant is mutable.
-        auto &inner = const_cast<ECSLTerm::Expr &>(
-            std::get<ECSLTerm::Expr>(lhs.Val()));
-        cexpr = std::move(inner.m_expr);
-      }
+      if (std::holds_alternative<ECSLTerm::Expr>(lhs.Val()))
+        cexpr = lhs.TakeExpr();
       return ECSLPred::MakeBoolExpr(std::move(cexpr), range);
     }
 
@@ -641,6 +631,9 @@ ECSLParser::ParseFunctionContract(llvm::StringRef Text, SourceLocation Loc,
 
 PendingAnnotation ecsl::parseECSLAnnotation(PendingAnnotation PA) {
   ECSLParser parser;
-  parser.ParseFunctionContract(PA.Body, PA.Loc);
+  SourceLocation body_loc = PA.Loc;
+  if (body_loc.isValid())
+    body_loc = body_loc.getLocWithOffset(3);
+  parser.ParseFunctionContract(PA.Body, body_loc);
   return PA;
 }

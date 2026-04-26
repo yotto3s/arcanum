@@ -152,6 +152,12 @@ public:
   const std::variant<Expr, Result, Nothing> &Val() const { return m_val; }
   SourceRange Loc() const { return m_loc; }
 
+  /// Move the inner ECSLExpr out of an Expr term.
+  /// Behaviour is undefined if Val() is not Expr.
+  std::unique_ptr<ECSLExpr> TakeExpr() {
+    return std::move(std::get<Expr>(m_val).m_expr);
+  }
+
   static ECSLTerm MakeExpr(std::unique_ptr<ECSLExpr> E, SourceRange Loc) {
     return ECSLTerm{Expr{std::move(E)}, Loc};
   }
