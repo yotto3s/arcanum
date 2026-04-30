@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/ECSL/ECSLParser.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticECSL.h"
 #include "clang/ECSL/ECSLLexer.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -250,10 +252,10 @@ private:
 
   // ---- Diagnostics --------------------------------------------------------
 
-  void EmitError(const ECSLToken & /*tok*/, const char * /*msg*/) {
-    // \todo Emit proper ECSL diagnostics once the diagnostic table is
-    //        established.  For M1, errors are silently recovered.
-    (void)m_diags;
+  void EmitError(const ECSLToken &tok, unsigned diag_id) {
+    if (!m_diags)
+      return;
+    m_diags->Report(LocStart(tok), diag_id);
   }
 
   // ---- Error recovery -----------------------------------------------------
@@ -356,7 +358,7 @@ private:
     }
 
     if (m_pos == start) {
-      EmitError(Current(), "expected expression term");
+      EmitError(Current(), diag::err_ecsl_expected_term);
       return ECSLTerm::MakeExpr(nullptr, SourceRange{});
     }
 
@@ -391,7 +393,7 @@ private:
         if (!AtEnd() && Current().m_kind == ECSLTokenKind::RParen)
           Consume();
         else
-          EmitError(Current(), "expected ')' after predicate");
+          EmitError(Current(), diag::err_ecsl_expected_rparen);
         return pred;
       }
     }
@@ -493,7 +495,7 @@ private:
     if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon)
       Consume();
     else
-      EmitError(Current(), "expected ';' after requires predicate");
+      EmitError(Current(), diag::err_ecsl_expected_semi_after_requires);
 
     ECSLFunctionContract::RequiresClause clause;
     clause.m_pred = std::move(pred);
@@ -512,7 +514,7 @@ private:
     if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon)
       Consume();
     else
-      EmitError(Current(), "expected ';' after ensures predicate");
+      EmitError(Current(), diag::err_ecsl_expected_semi_after_ensures);
 
     ECSLFunctionContract::EnsuresClause clause;
     clause.m_pred = std::move(pred);
@@ -527,9 +529,7 @@ private:
     SourceLocation start = LocStart(Consume());
 
     if (Current().m_kind != ECSLTokenKind::BslashNothing) {
-      EmitError(Current(),
-                "expected '\\nothing' after 'assigns' (M1 supports only "
-                "'assigns \\nothing')");
+      EmitError(Current(), diag::err_ecsl_assigns_not_nothing);
       SkipToSemi();
       return std::nullopt;
     }
@@ -539,7 +539,7 @@ private:
     if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon)
       Consume();
     else
-      EmitError(Current(), "expected ';' after assigns \\nothing");
+      EmitError(Current(), diag::err_ecsl_expected_semi_after_assigns);
 
     ECSLFunctionContract::AssignsNothingClause clause;
     clause.m_loc = range;
@@ -597,8 +597,7 @@ std::optional<ECSLFunctionContract> ECSLParserImpl::ParseFunctionContract() {
       break;
 
     // Unexpected token at clause position — emit a diagnostic and skip.
-    EmitError(Current(),
-              "expected 'requires', 'ensures', or 'assigns' at clause start");
+    EmitError(Current(), diag::err_ecsl_unexpected_clause_token);
     SkipToSemi();
   }
 
