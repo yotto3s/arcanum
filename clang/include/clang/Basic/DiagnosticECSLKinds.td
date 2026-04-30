@@ -13,7 +13,7 @@ def err_ecsl_expected_term : Error<
   "expected expression term">;
 
 def err_ecsl_expected_rparen : Error<
-  "expected ')' to close ECSL predicate group">;
+  "expected ')' after predicate">;
 
 def err_ecsl_expected_semi_after_requires : Error<
   "expected ';' after requires predicate">;
@@ -22,7 +22,7 @@ def err_ecsl_expected_semi_after_ensures : Error<
   "expected ';' after ensures predicate">;
 
 def err_ecsl_assigns_not_nothing : Error<
-  "expected '\\nothing' after 'assigns'; only 'assigns \\nothing' is supported">;
+  "expected '\\nothing' after 'assigns'; only 'assigns \\nothing' is supported in M1">;
 
 def err_ecsl_expected_semi_after_assigns : Error<
   "expected ';' after 'assigns \\nothing'">;
