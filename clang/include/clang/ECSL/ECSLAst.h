@@ -17,6 +17,7 @@
 
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/StringRef.h"
+#include <cassert>
 #include <memory>
 #include <optional>
 #include <string>
@@ -152,6 +153,15 @@ public:
   const std::variant<Expr, Result, Nothing> &Val() const { return m_val; }
   SourceRange Loc() const { return m_loc; }
 
+  /// Move the inner ECSLExpr out of an Expr term.
+  /// \pre Val() must hold an Expr alternative; the term retains the Expr
+  /// alternative with a moved-from (null) m_expr after extraction.
+  std::unique_ptr<ECSLExpr> TakeExpr() {
+    assert(std::holds_alternative<Expr>(m_val) &&
+           "TakeExpr() called on non-Expr ECSLTerm");
+    return std::move(std::get<Expr>(m_val).m_expr);
+  }
+
   static ECSLTerm MakeExpr(std::unique_ptr<ECSLExpr> E, SourceRange Loc) {
     return ECSLTerm{Expr{std::move(E)}, Loc};
   }
@@ -188,19 +198,25 @@ struct ECSLPred {
   struct Not {
     std::unique_ptr<ECSLPred> m_operand;
   };
+  /// A bare expression used as a boolean predicate, e.g. the inner
+  /// predicate in `requires !flag;` where `flag` has no relational operator.
+  struct BoolExpr {
+    std::unique_ptr<ECSLExpr> m_expr;
+  };
 
 private:
-  std::variant<True, False, Rel, And, Or, Not> m_val;
+  std::variant<True, False, Rel, And, Or, Not, BoolExpr> m_val;
   SourceRange m_loc;
 
 public:
-  ECSLPred(std::variant<True, False, Rel, And, Or, Not> Val, SourceRange Loc)
+  ECSLPred(std::variant<True, False, Rel, And, Or, Not, BoolExpr> Val,
+           SourceRange Loc)
       : m_val(std::move(Val)), m_loc(Loc) {}
   ~ECSLPred() = default;
   ECSLPred(ECSLPred &&) = default;
   ECSLPred &operator=(ECSLPred &&) = default;
 
-  const std::variant<True, False, Rel, And, Or, Not> &Val() const {
+  const std::variant<True, False, Rel, And, Or, Not, BoolExpr> &Val() const {
     return m_val;
   }
   SourceRange Loc() const { return m_loc; }
@@ -236,6 +252,11 @@ public:
   static std::unique_ptr<ECSLPred> MakeNot(std::unique_ptr<ECSLPred> Operand,
                                            SourceRange Loc) {
     return std::make_unique<ECSLPred>(Not{std::move(Operand)}, Loc);
+  }
+
+  static std::unique_ptr<ECSLPred> MakeBoolExpr(std::unique_ptr<ECSLExpr> E,
+                                                SourceRange Loc) {
+    return std::make_unique<ECSLPred>(BoolExpr{std::move(E)}, Loc);
   }
 };
 
@@ -283,6 +304,15 @@ struct ECSLFunctionContract {
   size_t EnsuresCount() const { return m_ensures.size(); }
   bool HasAssignsNothing() const { return m_assigns_nothing.has_value(); }
   SourceRange Loc() const { return m_loc; }
+
+  const RequiresClause &RequiresAt(size_t I) const {
+    assert(I < m_requires.size() && "RequiresAt() index out of range");
+    return m_requires[I];
+  }
+  const EnsuresClause &EnsuresAt(size_t I) const {
+    assert(I < m_ensures.size() && "EnsuresAt() index out of range");
+    return m_ensures[I];
+  }
 
 private:
   std::vector<RequiresClause> m_requires;
