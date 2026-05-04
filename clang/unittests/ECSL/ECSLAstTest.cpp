@@ -242,6 +242,58 @@ TEST_F(ECSLFunctionContractTest, ContractWithMultipleClauses) {
   EXPECT_TRUE(m_contract.HasAssignsNothing());
 }
 
+TEST(ECSLTermTest, TakeExprExtractsExpr) {
+  auto expr = ECSLExpr::MakeIntLit("42", SourceRange{});
+  ECSLExpr *raw = expr.get();
+  ECSLTerm term = ECSLTerm::MakeExpr(std::move(expr), SourceRange{});
+
+  ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(term.Val()));
+  auto taken = term.TakeExpr();
+  ASSERT_NE(taken, nullptr);
+  EXPECT_EQ(taken.get(), raw);
+  // After extraction the term still holds the Expr alternative, but m_expr is
+  // null (moved-from).
+  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Expr>(term.Val()));
+}
+
+TEST_F(ECSLFunctionContractTest, RequiresAtReturnsCorrectClause) {
+  ECSLFunctionContract::RequiresClause req0;
+  req0.m_mod = ClauseModifier::Admit;
+  req0.m_pred = ECSLPred::MakeTrue(SourceRange{});
+
+  ECSLFunctionContract::RequiresClause req1;
+  req1.m_mod = ClauseModifier::Check;
+  req1.m_pred = ECSLPred::MakeFalse(SourceRange{});
+
+  m_contract.AddRequires(std::move(req0));
+  m_contract.AddRequires(std::move(req1));
+
+  ASSERT_EQ(m_contract.RequiresCount(), 2u);
+  EXPECT_EQ(m_contract.RequiresAt(0).m_mod, ClauseModifier::Admit);
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(
+      m_contract.RequiresAt(0).m_pred->Val()));
+  EXPECT_EQ(m_contract.RequiresAt(1).m_mod, ClauseModifier::Check);
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::False>(
+      m_contract.RequiresAt(1).m_pred->Val()));
+}
+
+TEST_F(ECSLFunctionContractTest, EnsuresAtReturnsCorrectClause) {
+  ECSLFunctionContract::EnsuresClause ens0;
+  ens0.m_pred = ECSLPred::MakeTrue(SourceRange{});
+
+  ECSLFunctionContract::EnsuresClause ens1;
+  ens1.m_pred = ECSLPred::MakeFalse(SourceRange{});
+
+  m_contract.AddEnsures(std::move(ens0));
+  m_contract.AddEnsures(std::move(ens1));
+
+  ASSERT_EQ(m_contract.EnsuresCount(), 2u);
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::True>(
+      m_contract.EnsuresAt(0).m_pred->Val()));
+  EXPECT_TRUE(std::holds_alternative<ECSLPred::False>(
+      m_contract.EnsuresAt(1).m_pred->Val()));
+}
+
 // ---------------------------------------------------------------------------
 // Move semantics
 // ---------------------------------------------------------------------------

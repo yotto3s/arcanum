@@ -17,6 +17,7 @@
 
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/StringRef.h"
+#include <cassert>
 #include <memory>
 #include <optional>
 #include <string>
@@ -153,8 +154,11 @@ public:
   SourceRange Loc() const { return m_loc; }
 
   /// Move the inner ECSLExpr out of an Expr term.
-  /// Behaviour is undefined if Val() is not Expr.
+  /// \pre Val() must hold an Expr alternative; the term retains the Expr
+  /// alternative with a moved-from (null) m_expr after extraction.
   std::unique_ptr<ECSLExpr> TakeExpr() {
+    assert(std::holds_alternative<Expr>(m_val) &&
+           "TakeExpr() called on non-Expr ECSLTerm");
     return std::move(std::get<Expr>(m_val).m_expr);
   }
 
@@ -301,8 +305,14 @@ struct ECSLFunctionContract {
   bool HasAssignsNothing() const { return m_assigns_nothing.has_value(); }
   SourceRange Loc() const { return m_loc; }
 
-  const RequiresClause &RequiresAt(size_t I) const { return m_requires[I]; }
-  const EnsuresClause &EnsuresAt(size_t I) const { return m_ensures[I]; }
+  const RequiresClause &RequiresAt(size_t I) const {
+    assert(I < m_requires.size() && "RequiresAt() index out of range");
+    return m_requires[I];
+  }
+  const EnsuresClause &EnsuresAt(size_t I) const {
+    assert(I < m_ensures.size() && "EnsuresAt() index out of range");
+    return m_ensures[I];
+  }
 
 private:
   std::vector<RequiresClause> m_requires;
