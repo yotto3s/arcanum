@@ -150,6 +150,15 @@ TEST(ECSLPredTest, NestedAndOrTree) {
   EXPECT_TRUE(std::holds_alternative<ECSLPred::Not>(or_pred.m_right->Val()));
 }
 
+TEST(ECSLPredTest, MakeBoolExpr) {
+  auto expr = ECSLExpr::MakeIdent("flag", SourceRange{});
+  ECSLExpr *raw = expr.get();
+  auto p = ECSLPred::MakeBoolExpr(std::move(expr), SourceRange{});
+  ASSERT_NE(p, nullptr);
+  ASSERT_TRUE(std::holds_alternative<ECSLPred::BoolExpr>(p->Val()));
+  EXPECT_EQ(std::get<ECSLPred::BoolExpr>(p->Val()).m_expr.get(), raw);
+}
+
 // ---------------------------------------------------------------------------
 // ECSLFunctionContract
 // ---------------------------------------------------------------------------
