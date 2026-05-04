@@ -7,14 +7,13 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// Declares the ECSL annotation recursive-descent parser.
+/// Declares the ECSL annotation parser front-end (ECSLParser) and the
+/// internal ECSLExprParser recursive-descent parser for C arithmetic
+/// sub-expressions.
 ///
-/// ECSLParser handles:
-///   requires <pred>;  ensures <pred>;  assigns \nothing;
-///
-/// Predicates support:  ==, !=, <, <=, >, >=, &&, ||, !
-/// Terms support:       \result, \nothing, C expressions
-/// Arithmetic (+, -, *, /, %) inside C terms is parsed into ECSLExpr trees.
+/// This PR introduces ECSLExprParser only.  ECSLParser::ParseFunctionContract
+/// is a stub that always returns std::nullopt; ECSLParserImpl (contract clause
+/// grammar: requires/ensures/assigns) is added in the next PR.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -37,6 +36,9 @@ namespace ecsl {
 /// Stateless parser front-end.  Instantiate once and call
 /// ParseFunctionContract for each annotation; parsing state is created
 /// per call.
+///
+/// \note ParseFunctionContract is currently a stub returning std::nullopt.
+///       ECSLParserImpl (contract clause grammar) is added in the next PR.
 class ECSLParser {
 public:
   ECSLParser() = default;

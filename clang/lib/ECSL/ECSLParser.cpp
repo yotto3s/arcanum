@@ -20,28 +20,6 @@ using namespace clang::ecsl;
 
 namespace {
 
-/// Returns true if \p k terminates a C-term scan at predicate level (depth 0).
-static bool IsClauseBoundary(ECSLTokenKind k) {
-  switch (k) {
-  case ECSLTokenKind::EqEq:
-  case ECSLTokenKind::BangEq:
-  case ECSLTokenKind::Lt:
-  case ECSLTokenKind::Le:
-  case ECSLTokenKind::Gt:
-  case ECSLTokenKind::Ge:
-  case ECSLTokenKind::AmpAmp:
-  case ECSLTokenKind::PipePipe:
-  case ECSLTokenKind::Bang:
-  case ECSLTokenKind::Semicolon:
-  case ECSLTokenKind::Eof:
-  case ECSLTokenKind::BslashResult:
-  case ECSLTokenKind::BslashNothing:
-    return true;
-  default:
-    return false;
-  }
-}
-
 // ---------------------------------------------------------------------------
 // ECSL C expression sub-parser
 // ---------------------------------------------------------------------------
@@ -64,7 +42,12 @@ public:
                           SourceLocation base_loc)
       : m_tokens(tokens), m_base_loc(base_loc) {}
 
-  std::unique_ptr<ECSLExpr> ParseExpr() { return ParseAddSub(); }
+  std::unique_ptr<ECSLExpr> ParseExpr() {
+    auto result = ParseAddSub();
+    if (result && !AtEnd())
+      return nullptr;
+    return result;
+  }
 
 private:
   bool AtEnd() const {
@@ -91,8 +74,10 @@ private:
   }
 
   SourceRange LocRange(const ECSLToken &tok) const {
-    return SourceRange(LocOf(tok.m_offset),
-                       LocOf(tok.m_offset + tok.m_text.size()));
+    unsigned end_off = tok.m_text.empty()
+                           ? tok.m_offset
+                           : tok.m_offset + tok.m_text.size() - 1;
+    return SourceRange(LocOf(tok.m_offset), LocOf(end_off));
   }
 
   std::unique_ptr<ECSLExpr> ParseAddSub() {
@@ -111,7 +96,7 @@ private:
       Consume();
       auto rhs = ParseMulDiv();
       if (!rhs)
-        break;
+        return nullptr;
       SourceRange range(lhs->Loc().getBegin(), rhs->Loc().getEnd());
       lhs = ECSLExpr::MakeBinOp(op, std::move(lhs), std::move(rhs), range);
     }
@@ -136,7 +121,7 @@ private:
       Consume();
       auto rhs = ParseUnary();
       if (!rhs)
-        break;
+        return nullptr;
       SourceRange range(lhs->Loc().getBegin(), rhs->Loc().getEnd());
       lhs = ECSLExpr::MakeBinOp(op, std::move(lhs), std::move(rhs), range);
     }
@@ -222,4 +207,3 @@ PendingAnnotation ecsl::parseECSLAnnotation(PendingAnnotation PA) {
   parser.ParseFunctionContract(PA.Body, body_loc);
   return PA;
 }
-
