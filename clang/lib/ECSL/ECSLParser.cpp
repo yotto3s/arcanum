@@ -8,8 +8,8 @@
 
 #include "clang/ECSL/ECSLParser.h"
 #include "clang/ECSL/ECSLLexer.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
 
 using namespace clang;
 using namespace clang::ecsl;
@@ -167,9 +167,12 @@ private:
 
     if (tok.m_kind == ECSLTokenKind::LParen) {
       Consume(); // '('
-      auto e = ParseExpr();
-      if (!AtEnd() && Current().m_kind == ECSLTokenKind::RParen)
-        Consume(); // ')'
+      auto e = ParseAddSub();
+      if (!e)
+        return nullptr;
+      if (AtEnd() || Current().m_kind != ECSLTokenKind::RParen)
+        return nullptr; // missing ')'
+      Consume();        // ')'
       return e;
     }
 
@@ -193,6 +196,15 @@ ECSLParser::ParseFunctionContract(llvm::StringRef Text, SourceLocation Loc,
   // ECSLParserImpl (contract clause grammar) is added in the next PR.
   // Returning nullopt here keeps the compat shim and all callers compilable.
   return std::nullopt;
+}
+
+std::unique_ptr<ECSLExpr> ECSLParser::ParseCExpr(llvm::StringRef Text,
+                                                 SourceLocation Loc) {
+  llvm::SmallVector<ECSLToken> tokens;
+  ECSLLexer lexer(Text, Loc);
+  lexer.Lex(tokens);
+  ECSLExprParser parser(tokens, Loc);
+  return parser.ParseExpr();
 }
 
 // ---------------------------------------------------------------------------

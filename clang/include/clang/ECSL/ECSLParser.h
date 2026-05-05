@@ -22,7 +22,6 @@
 
 #include "clang/ECSL/ECSLAst.h"
 #include "clang/ECSL/ECSLCommentHandler.h"
-#include "clang/ECSL/ECSLLexer.h"
 #include "llvm/ADT/StringRef.h"
 #include <optional>
 
@@ -57,6 +56,21 @@ public:
   std::optional<ECSLFunctionContract>
   ParseFunctionContract(llvm::StringRef Text, SourceLocation Loc,
                         DiagnosticsEngine *Diags = nullptr);
+
+  /// Parse \p Text as a standalone C arithmetic expression.
+  ///
+  /// Lexes \p Text using ECSLLexer and runs ECSLExprParser on the resulting
+  /// token span.  Primarily intended for unit-testing ECSLExprParser without
+  /// going through the full contract grammar.
+  ///
+  /// \param Text     Raw C expression text (no comment delimiters).
+  /// \param Loc      Source location of the first character of \p Text.
+  ///                 Pass an invalid SourceLocation to suppress location info.
+  ///
+  /// Returns nullptr on any parse error (malformed expression, unconsumed
+  /// tokens after the expression, etc.).
+  std::unique_ptr<ECSLExpr> ParseCExpr(llvm::StringRef Text,
+                                       SourceLocation Loc);
 };
 
 /// Compatibility entry point used by the clangParse dispatch hooks.
