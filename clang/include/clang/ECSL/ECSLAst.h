@@ -99,6 +99,7 @@ public:
     return m_val;
   }
   SourceRange Loc() const { return m_loc; }
+  void SetLoc(SourceRange Loc) { m_loc = Loc; }
 
   static std::unique_ptr<ECSLExpr> MakeIntLit(std::string Val,
                                               SourceRange Loc) {

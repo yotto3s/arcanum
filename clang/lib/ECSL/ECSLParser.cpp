@@ -166,13 +166,15 @@ private:
     }
 
     if (tok.m_kind == ECSLTokenKind::LParen) {
+      SourceLocation open = LocOf(tok.m_offset);
       Consume(); // '('
       auto e = ParseAddSub();
       if (!e)
         return nullptr;
       if (AtEnd() || Current().m_kind != ECSLTokenKind::RParen)
-        return nullptr; // missing ')'
-      Consume();        // ')'
+        return nullptr;            // missing ')'
+      ECSLToken close = Consume(); // ')'
+      e->SetLoc(SourceRange(open, LocOf(close.m_offset)));
       return e;
     }
 
