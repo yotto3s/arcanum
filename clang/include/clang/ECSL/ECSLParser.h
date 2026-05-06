@@ -70,8 +70,7 @@ public:
   ///
   /// Returns nullptr on any parse error (malformed expression, unconsumed
   /// tokens after the expression, etc.).
-  std::unique_ptr<ECSLExpr> ParseExpr(llvm::StringRef Text,
-                                      SourceLocation Loc);
+  std::unique_ptr<ECSLExpr> ParseExpr(llvm::StringRef Text, SourceLocation Loc);
 };
 
 /// Compatibility entry point used by the clangParse dispatch hooks.

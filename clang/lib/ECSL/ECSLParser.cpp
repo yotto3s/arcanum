@@ -24,7 +24,8 @@ namespace {
 // ECSL C/C++ expression sub-parser
 // ---------------------------------------------------------------------------
 
-/// Recursive-descent parser for C/C++ expression fragments inside ECSL contracts.
+/// Recursive-descent parser for C/C++ expression fragments inside ECSL
+/// contracts.
 ///
 /// Operates on the sub-span of Identifier / IntegerLiteral / FloatLiteral /
 /// arithmetic-op / paren tokens collected by ECSLParserImpl::ParseCTerm, and
