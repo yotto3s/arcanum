@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// Unit tests for ECSLExprParser via ECSLParser::ParseCExpr.
+/// Unit tests for ECSLExprParser via ECSLParser::ParseExpr.
 ///
 /// Tests cover: integer/bool literals, identifiers, operator precedence,
 /// left-associativity, unary negation, parenthesised expressions, and error
@@ -27,7 +27,7 @@ namespace {
 /// Parse \p text and return the resulting ECSLExpr (or nullptr on error).
 static std::unique_ptr<ECSLExpr> Parse(llvm::StringRef text) {
   ECSLParser parser;
-  return parser.ParseCExpr(text, SourceLocation{});
+  return parser.ParseExpr(text, SourceLocation::getFromRawEncoding(1));
 }
 
 // ---------------------------------------------------------------------------

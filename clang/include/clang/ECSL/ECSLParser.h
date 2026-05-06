@@ -8,12 +8,12 @@
 ///
 /// \file
 /// Declares the ECSL annotation parser front-end (ECSLParser) and the
-/// internal ECSLExprParser recursive-descent parser for C arithmetic
+/// internal ECSLExprParser recursive-descent parser for C/C++ arithmetic
 /// sub-expressions.
 ///
-/// This PR introduces ECSLExprParser only.  ECSLParser::ParseFunctionContract
-/// is a stub that always returns std::nullopt; ECSLParserImpl (contract clause
-/// grammar: requires/ensures/assigns) is added in the next PR.
+/// \todo ECSLParserImpl (contract clause grammar: requires/ensures/assigns)
+///       is not yet implemented; ECSLParser::ParseFunctionContract always
+///       returns std::nullopt until ECSLParserImpl is wired in.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -36,8 +36,9 @@ namespace ecsl {
 /// ParseFunctionContract for each annotation; parsing state is created
 /// per call.
 ///
-/// \note ParseFunctionContract is currently a stub returning std::nullopt.
-///       ECSLParserImpl (contract clause grammar) is added in the next PR.
+/// \todo ParseFunctionContract is currently a stub returning std::nullopt;
+///       it will be implemented once ECSLParserImpl (contract clause grammar)
+///       is wired in.
 class ECSLParser {
 public:
   ECSLParser() = default;
@@ -57,26 +58,28 @@ public:
   ParseFunctionContract(llvm::StringRef Text, SourceLocation Loc,
                         DiagnosticsEngine *Diags = nullptr);
 
-  /// Parse \p Text as a standalone C arithmetic expression.
+  /// Parse \p Text as a standalone C/C++ arithmetic expression.
   ///
   /// Lexes \p Text using ECSLLexer and runs ECSLExprParser on the resulting
   /// token span.  Primarily intended for unit-testing ECSLExprParser without
   /// going through the full contract grammar.
   ///
-  /// \param Text     Raw C expression text (no comment delimiters).
+  /// \param Text     Raw C/C++ expression text (no comment delimiters).
   /// \param Loc      Source location of the first character of \p Text.
-  ///                 Pass an invalid SourceLocation to suppress location info.
+  ///                 Must be a valid SourceLocation.
   ///
   /// Returns nullptr on any parse error (malformed expression, unconsumed
   /// tokens after the expression, etc.).
-  std::unique_ptr<ECSLExpr> ParseCExpr(llvm::StringRef Text,
-                                       SourceLocation Loc);
+  std::unique_ptr<ECSLExpr> ParseExpr(llvm::StringRef Text,
+                                      SourceLocation Loc);
 };
 
 /// Compatibility entry point used by the clangParse dispatch hooks.
 /// \todo Wire in typed contract storage once the annotation store supports it.
 /// Calls ParseFunctionContract for validation; always returns the original
 /// PendingAnnotation unchanged so the raw store stays populated.
+///
+/// \param PA  The raw annotation (text body + source location) to parse.
 PendingAnnotation parseECSLAnnotation(PendingAnnotation PA);
 
 } // namespace ecsl

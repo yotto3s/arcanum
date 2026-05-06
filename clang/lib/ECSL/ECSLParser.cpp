@@ -15,16 +15,16 @@ using namespace clang;
 using namespace clang::ecsl;
 
 // ---------------------------------------------------------------------------
-// Internal parser state — not exposed in the header.
+// Internal parser state.
 // ---------------------------------------------------------------------------
 
 namespace {
 
 // ---------------------------------------------------------------------------
-// ECSL C expression sub-parser
+// ECSL C/C++ expression sub-parser
 // ---------------------------------------------------------------------------
 
-/// Recursive-descent parser for C expression fragments inside ECSL contracts.
+/// Recursive-descent parser for C/C++ expression fragments inside ECSL contracts.
 ///
 /// Operates on the sub-span of Identifier / IntegerLiteral / FloatLiteral /
 /// arithmetic-op / paren tokens collected by ECSLParserImpl::ParseCTerm, and
@@ -44,8 +44,9 @@ public:
 
   std::unique_ptr<ECSLExpr> ParseExpr() {
     auto result = ParseAddSub();
-    if (result && !AtEnd())
+    if (result && !AtEnd()) {
       return nullptr;
+    }
     return result;
   }
 
@@ -68,8 +69,7 @@ private:
   }
 
   SourceLocation LocOf(unsigned offset) const {
-    if (!m_base_loc.isValid())
-      return SourceLocation{};
+    assert(m_base_loc.isValid());
     return m_base_loc.getLocWithOffset(static_cast<int>(offset));
   }
 
@@ -82,21 +82,24 @@ private:
 
   std::unique_ptr<ECSLExpr> ParseAddSub() {
     auto lhs = ParseMulDiv();
-    if (!lhs)
+    if (!lhs) {
       return nullptr;
+    }
     while (!AtEnd()) {
       ECSLTokenKind k = Current().m_kind;
       ExprOp op;
-      if (k == ECSLTokenKind::Plus)
+      if (k == ECSLTokenKind::Plus) {
         op = ExprOp::Add;
-      else if (k == ECSLTokenKind::Minus)
+      } else if (k == ECSLTokenKind::Minus) {
         op = ExprOp::Sub;
-      else
+      } else {
         break;
+      }
       Consume();
       auto rhs = ParseMulDiv();
-      if (!rhs)
+      if (!rhs) {
         return nullptr;
+      }
       SourceRange range(lhs->Loc().getBegin(), rhs->Loc().getEnd());
       lhs = ECSLExpr::MakeBinOp(op, std::move(lhs), std::move(rhs), range);
     }
@@ -105,23 +108,26 @@ private:
 
   std::unique_ptr<ECSLExpr> ParseMulDiv() {
     auto lhs = ParseUnary();
-    if (!lhs)
+    if (!lhs) {
       return nullptr;
+    }
     while (!AtEnd()) {
       ECSLTokenKind k = Current().m_kind;
       ExprOp op;
-      if (k == ECSLTokenKind::Star)
+      if (k == ECSLTokenKind::Star) {
         op = ExprOp::Mul;
-      else if (k == ECSLTokenKind::Slash)
+      } else if (k == ECSLTokenKind::Slash) {
         op = ExprOp::Div;
-      else if (k == ECSLTokenKind::Percent)
+      } else if (k == ECSLTokenKind::Percent) {
         op = ExprOp::Mod;
-      else
+      } else {
         break;
+      }
       Consume();
       auto rhs = ParseUnary();
-      if (!rhs)
+      if (!rhs) {
         return nullptr;
+      }
       SourceRange range(lhs->Loc().getBegin(), rhs->Loc().getEnd());
       lhs = ECSLExpr::MakeBinOp(op, std::move(lhs), std::move(rhs), range);
     }
@@ -133,8 +139,9 @@ private:
       ECSLToken tok = Consume();
       SourceLocation start = LocOf(tok.m_offset);
       auto operand = ParseUnary();
-      if (!operand)
+      if (!operand) {
         return nullptr;
+      }
       SourceRange range(start, operand->Loc().getEnd());
       return ECSLExpr::MakeUnary(ExprOp::Neg, std::move(operand), range);
     }
@@ -142,13 +149,15 @@ private:
   }
 
   std::unique_ptr<ECSLExpr> ParsePrimary() {
-    if (AtEnd())
+    if (AtEnd()) {
       return nullptr;
+    }
 
     const ECSLToken &tok = Current();
 
-    if (tok.m_kind == ECSLTokenKind::FloatLiteral)
+    if (tok.m_kind == ECSLTokenKind::FloatLiteral) {
       return nullptr; // \todo float literals not yet supported
+    }
 
     if (tok.m_kind == ECSLTokenKind::IntegerLiteral) {
       Consume();
@@ -158,10 +167,12 @@ private:
     if (tok.m_kind == ECSLTokenKind::Identifier) {
       Consume();
       SourceRange loc = LocRange(tok);
-      if (tok.m_text == "true")
+      if (tok.m_text == "true") {
         return ECSLExpr::MakeBoolLit(true, loc);
-      if (tok.m_text == "false")
+      }
+      if (tok.m_text == "false") {
         return ECSLExpr::MakeBoolLit(false, loc);
+      }
       return ECSLExpr::MakeIdent(tok.m_text, loc);
     }
 
@@ -169,10 +180,12 @@ private:
       SourceLocation open = LocOf(tok.m_offset);
       Consume(); // '('
       auto e = ParseAddSub();
-      if (!e)
+      if (!e) {
         return nullptr;
-      if (AtEnd() || Current().m_kind != ECSLTokenKind::RParen)
-        return nullptr;            // missing ')'
+      }
+      if (AtEnd() || Current().m_kind != ECSLTokenKind::RParen) {
+        return nullptr; // missing ')'
+      }
       ECSLToken close = Consume(); // ')'
       e->SetLoc(SourceRange(open, LocOf(close.m_offset)));
       return e;
@@ -195,13 +208,13 @@ private:
 std::optional<ECSLFunctionContract>
 ECSLParser::ParseFunctionContract(llvm::StringRef Text, SourceLocation Loc,
                                   DiagnosticsEngine *Diags) {
-  // ECSLParserImpl (contract clause grammar) is added in the next PR.
-  // Returning nullopt here keeps the compat shim and all callers compilable.
+  // \todo ECSLParserImpl (contract clause grammar) is not yet implemented.
+  // Returning nullopt keeps the compat shim and all callers compilable.
   return std::nullopt;
 }
 
-std::unique_ptr<ECSLExpr> ECSLParser::ParseCExpr(llvm::StringRef Text,
-                                                 SourceLocation Loc) {
+std::unique_ptr<ECSLExpr> ECSLParser::ParseExpr(llvm::StringRef Text,
+                                                SourceLocation Loc) {
   llvm::SmallVector<ECSLToken> tokens;
   ECSLLexer lexer(Text, Loc);
   lexer.Lex(tokens);
@@ -216,8 +229,9 @@ std::unique_ptr<ECSLExpr> ECSLParser::ParseCExpr(llvm::StringRef Text,
 PendingAnnotation ecsl::parseECSLAnnotation(PendingAnnotation PA) {
   ECSLParser parser;
   SourceLocation body_loc = PA.Loc;
-  if (body_loc.isValid())
+  if (body_loc.isValid()) {
     body_loc = body_loc.getLocWithOffset(3);
+  }
   parser.ParseFunctionContract(PA.Body, body_loc);
   return PA;
 }
