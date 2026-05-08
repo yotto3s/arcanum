@@ -32,15 +32,12 @@ static std::optional<ECSLFunctionContract> Parse(llvm::StringRef text) {
                                       /*Diags=*/nullptr);
 }
 
-/// Test fixture providing the Parse() helper.
-class ECSLParserFixture : public ::testing::Test {
-protected:
-  static std::optional<ECSLFunctionContract> Parse(llvm::StringRef text) {
-    ECSLParser parser;
-    return parser.ParseFunctionContract(
-        text, SourceLocation::getFromRawEncoding(1), nullptr);
-  }
-};
+/// Test fixture for ECSLParser contract tests.
+///
+/// Contains no state; exists so TEST_F tests share the same test-suite name.
+/// All tests call the free-function \c Parse() above, which is the single
+/// canonical helper reused by both TEST_F and parameterised TEST_P tests.
+class ECSLParserFixture : public ::testing::Test {};
 
 // ---------------------------------------------------------------------------
 // Empty / non-contract input

@@ -359,8 +359,9 @@ private:
       return ECSLTerm::MakeNothing(LocRange(tok));
     }
 
-    // Collect a C expression fragment.  Track parenthesis depth so function
-    // call arguments like f(x > 0) are not split at the '>'.
+    // Collect a C expression fragment.  Track parenthesis depth so that
+    // parenthesised arithmetic sub-expressions like (x + y) are not split at
+    // a relational operator that follows the closing paren.
     unsigned start = m_pos;
     unsigned depth = 0;
 
@@ -693,6 +694,10 @@ std::optional<ECSLFunctionContract> ECSLParserImpl::ParseFunctionContract() {
 std::optional<ECSLFunctionContract>
 ECSLParser::ParseFunctionContract(llvm::StringRef Text, SourceLocation Loc,
                                   DiagnosticsEngine *Diags) {
+  assert(Loc.isValid() &&
+         "ParseFunctionContract requires a valid SourceLocation"
+         "; use getFromRawEncoding(1) when location info is "
+         "not needed");
   llvm::SmallVector<ECSLToken> tokens;
   ECSLLexer lexer(Text, Loc);
   lexer.Lex(tokens);
