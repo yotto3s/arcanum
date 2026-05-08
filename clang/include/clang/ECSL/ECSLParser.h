@@ -47,7 +47,10 @@ public:
   ///
   /// \param Text  Raw annotation body (comment delimiters already stripped).
   /// \param Loc   Source location of the first character of \p Text.
-  ///              Pass an invalid SourceLocation to suppress location info.
+  ///              Must be a valid SourceLocation; use
+  ///              \c SourceLocation::getFromRawEncoding(1) when location
+  ///              info is not needed.  Passing an invalid SourceLocation
+  ///              will assert in debug builds.
   /// \param Diags Optional diagnostics engine; null means errors are silent.
   ///
   /// Returns std::nullopt when no valid clause was parsed (empty body,

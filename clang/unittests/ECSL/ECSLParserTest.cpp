@@ -25,7 +25,10 @@ namespace {
 /// Convenience: parse a function contract annotation.
 static std::optional<ECSLFunctionContract> Parse(llvm::StringRef text) {
   ECSLParser parser;
-  return parser.ParseFunctionContract(text, SourceLocation{},
+  // Use a synthetic valid SourceLocation; ECSLExprParser::LocOf asserts
+  // base_loc.isValid(), so SourceLocation{} would crash in assert builds.
+  return parser.ParseFunctionContract(text,
+                                      SourceLocation::getFromRawEncoding(1),
                                       /*Diags=*/nullptr);
 }
 
@@ -34,7 +37,8 @@ class ECSLParserFixture : public ::testing::Test {
 protected:
   static std::optional<ECSLFunctionContract> Parse(llvm::StringRef text) {
     ECSLParser parser;
-    return parser.ParseFunctionContract(text, SourceLocation{}, nullptr);
+    return parser.ParseFunctionContract(
+        text, SourceLocation::getFromRawEncoding(1), nullptr);
   }
 };
 
@@ -318,6 +322,24 @@ TEST_F(ECSLParserFixture, AssignsNonNothingSkipped) {
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->RequiresCount(), 1u);
   EXPECT_FALSE(result->HasAssignsNothing());
+}
+
+TEST_F(ECSLParserFixture, AssignsMissingSemiRecovery) {
+  // "assigns \nothing" without a trailing ';' — recovery calls SkipToSemi(),
+  // which consumes everything through the next ';' (including "requires x>0").
+  // No valid clause is recovered, so the result is nullopt.
+  auto result = Parse("assigns \\nothing requires x > 0;");
+  EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(ECSLParserFixture, RelNullRhsRecovery) {
+  // "x > ;" — the RHS term is empty, so ParseCTerm returns a null-expr Expr.
+  // ParseComparison must propagate the failure; ParseRequiresClause skips to
+  // the next ';' and the assigns clause is still parsed.
+  auto result = Parse("requires x > ; assigns \\nothing;");
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->RequiresCount(), 0u);
+  EXPECT_TRUE(result->HasAssignsNothing());
 }
 
 TEST_F(ECSLParserFixture, MultilineAnnotation) {

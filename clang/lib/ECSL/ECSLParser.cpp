@@ -281,9 +281,10 @@ private:
   // ---- Diagnostics --------------------------------------------------------
 
   void EmitError(const ECSLToken & /*tok*/, const char * /*msg*/) {
-    // Diagnostics are intentionally silent for M1 — proper typed diag:: IDs
-    // are wired in PR 4/4.  All error-recovery is structural (SkipToSemi /
-    // return nullopt) so callers still behave correctly.
+    // Intentionally a no-op for M1 — DiagnosticsEngine* is accepted and
+    // stored but is not invoked in this PR.  Typed diag:: IDs are wired in
+    // PR 4/4.  All error-recovery is structural (SkipToSemi / return nullopt)
+    // so callers still behave correctly without diagnostic output.
     (void)m_diags;
   }
 
@@ -478,7 +479,15 @@ private:
     }
 
     Consume(); // consume rel-op
+    // A null m_expr inside an Expr term means ParseCTerm already emitted an
+    // error; propagate the failure so the enclosing clause parser recovers.
+    if (std::holds_alternative<ECSLTerm::Expr>(lhs.Val()) &&
+        std::get<ECSLTerm::Expr>(lhs.Val()).m_expr == nullptr)
+      return nullptr;
     ECSLTerm rhs = ParseCTerm();
+    if (std::holds_alternative<ECSLTerm::Expr>(rhs.Val()) &&
+        std::get<ECSLTerm::Expr>(rhs.Val()).m_expr == nullptr)
+      return nullptr;
     SourceRange range(start_loc, rhs.Loc().getEnd());
     return ECSLPred::MakeRel(std::move(lhs), op, std::move(rhs), range);
   }
@@ -600,10 +609,13 @@ private:
     Consume(); // '\nothing'
 
     SourceRange range(start, LocStart(Current()));
-    if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon)
+    if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon) {
       Consume();
-    else
+    } else {
       EmitError(Current(), "expected ';' after assigns \\nothing");
+      SkipToSemi();
+      return std::nullopt;
+    }
 
     ECSLFunctionContract::AssignsNothingClause clause;
     clause.m_loc = range;
