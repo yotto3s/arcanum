@@ -262,12 +262,16 @@ private:
     return m_base_loc.getLocWithOffset(static_cast<int>(tok.m_offset));
   }
 
-  /// Return the SourceLocation for the *end* of \p tok (one past last char).
+  /// Return the SourceLocation for the *last* character of \p tok (inclusive).
+  /// Consistent with ECSLExprParser::LocRange which uses offset + size - 1.
   SourceLocation LocEnd(const ECSLToken &tok) const {
     if (!m_base_loc.isValid())
       return SourceLocation{};
-    return m_base_loc.getLocWithOffset(
-        static_cast<int>(tok.m_offset + tok.m_text.size()));
+    unsigned end_off =
+        tok.m_text.empty()
+            ? tok.m_offset
+            : tok.m_offset + static_cast<unsigned>(tok.m_text.size()) - 1;
+    return m_base_loc.getLocWithOffset(static_cast<int>(end_off));
   }
 
   SourceRange LocRange(const ECSLToken &tok) const {
@@ -277,8 +281,9 @@ private:
   // ---- Diagnostics --------------------------------------------------------
 
   void EmitError(const ECSLToken & /*tok*/, const char * /*msg*/) {
-    // \todo Emit proper ECSL diagnostics once the diagnostic table is
-    //        established.  For M1, errors are silently recovered.
+    // Diagnostics are intentionally silent for M1 — proper typed diag:: IDs
+    // are wired in PR 4/4.  All error-recovery is structural (SkipToSemi /
+    // return nullopt) so callers still behave correctly.
     (void)m_diags;
   }
 
@@ -389,6 +394,8 @@ private:
     llvm::ArrayRef<ECSLToken> span(m_tokens.data() + start, m_pos - start);
     std::unique_ptr<ECSLExpr> expr =
         ECSLExprParser(span, m_base_loc).ParseExpr();
+    if (!expr)
+      EmitError(m_tokens[start], "invalid C expression");
 
     SourceRange range(LocStart(m_tokens[start]),
                       LocEnd(m_tokens[m_pos > start ? m_pos - 1 : start]));
@@ -456,11 +463,17 @@ private:
     }
 
     if (!has_rel) {
-      // Bare term used as a boolean predicate (e.g. a plain identifier).
+      // \result and \nothing must appear in a relational comparison.
+      if (!std::holds_alternative<ECSLTerm::Expr>(lhs.Val())) {
+        EmitError(Current(),
+                  "\\result and \\nothing require a relational operator");
+        return nullptr;
+      }
+      // If ECSLExprParser failed, an error was already emitted by ParseCTerm.
       SourceRange range(start_loc, lhs.Loc().getEnd());
-      std::unique_ptr<ECSLExpr> cexpr;
-      if (std::holds_alternative<ECSLTerm::Expr>(lhs.Val()))
-        cexpr = lhs.TakeExpr();
+      std::unique_ptr<ECSLExpr> cexpr = lhs.TakeExpr();
+      if (!cexpr)
+        return nullptr;
       return ECSLPred::MakeBoolExpr(std::move(cexpr), range);
     }
 
@@ -475,7 +488,10 @@ private:
     if (Current().m_kind == ECSLTokenKind::Bang) {
       ECSLToken tok = Consume();
       auto operand = ParseUnary();
-      return ECSLPred::MakeNot(std::move(operand), LocStart(tok));
+      if (!operand)
+        return nullptr;
+      SourceRange range(LocStart(tok), operand->Loc().getEnd());
+      return ECSLPred::MakeNot(std::move(operand), range);
     }
     return ParseAtom();
   }
@@ -483,9 +499,13 @@ private:
   /// Parse a conjunction: <unary> ('&&' <unary>)*.
   std::unique_ptr<ECSLPred> ParseAnd() {
     auto lhs = ParseUnary();
+    if (!lhs)
+      return nullptr;
     while (!AtEnd() && Current().m_kind == ECSLTokenKind::AmpAmp) {
       Consume(); // '&&'
       auto rhs = ParseUnary();
+      if (!rhs)
+        return nullptr;
       SourceRange range(lhs->Loc().getBegin(), rhs->Loc().getEnd());
       lhs = ECSLPred::MakeAnd(std::move(lhs), std::move(rhs), range);
     }
@@ -495,9 +515,13 @@ private:
   /// Parse a disjunction: <and> ('||' <and>)*.
   std::unique_ptr<ECSLPred> ParseOr() {
     auto lhs = ParseAnd();
+    if (!lhs)
+      return nullptr;
     while (!AtEnd() && Current().m_kind == ECSLTokenKind::PipePipe) {
       Consume(); // '||'
       auto rhs = ParseAnd();
+      if (!rhs)
+        return nullptr;
       SourceRange range(lhs->Loc().getBegin(), rhs->Loc().getEnd());
       lhs = ECSLPred::MakeOr(std::move(lhs), std::move(rhs), range);
     }
@@ -514,12 +538,19 @@ private:
     SourceLocation start = LocStart(Consume());
 
     auto pred = ParsePred();
+    if (!pred) {
+      SkipToSemi();
+      return std::nullopt;
+    }
 
     SourceRange range(start, LocStart(Current()));
-    if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon)
+    if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon) {
       Consume();
-    else
+    } else {
       EmitError(Current(), "expected ';' after requires predicate");
+      SkipToSemi();
+      return std::nullopt;
+    }
 
     ECSLFunctionContract::RequiresClause clause;
     clause.m_pred = std::move(pred);
@@ -533,12 +564,19 @@ private:
     SourceLocation start = LocStart(Consume());
 
     auto pred = ParsePred();
+    if (!pred) {
+      SkipToSemi();
+      return std::nullopt;
+    }
 
     SourceRange range(start, LocStart(Current()));
-    if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon)
+    if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon) {
       Consume();
-    else
+    } else {
       EmitError(Current(), "expected ';' after ensures predicate");
+      SkipToSemi();
+      return std::nullopt;
+    }
 
     ECSLFunctionContract::EnsuresClause clause;
     clause.m_pred = std::move(pred);
@@ -596,8 +634,8 @@ std::optional<ECSLFunctionContract> ECSLParserImpl::ParseFunctionContract() {
         if (auto clause = ParseRequiresClause()) {
           contract.AddRequires(std::move(*clause));
           saw_any_clause = true;
-        } else
-          SkipToSemi();
+        }
+        // ParseRequiresClause calls SkipToSemi() internally on nullopt.
         continue;
       }
 
@@ -605,8 +643,8 @@ std::optional<ECSLFunctionContract> ECSLParserImpl::ParseFunctionContract() {
         if (auto clause = ParseEnsuresClause()) {
           contract.AddEnsures(std::move(*clause));
           saw_any_clause = true;
-        } else
-          SkipToSemi();
+        }
+        // ParseEnsuresClause calls SkipToSemi() internally on nullopt.
         continue;
       }
 

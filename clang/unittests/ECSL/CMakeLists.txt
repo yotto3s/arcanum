@@ -5,6 +5,7 @@ add_clang_unittest(ECSLTests
   ECSLDeclDispatchTest.cpp
   ECSLExprParserTest.cpp
   ECSLLexerTest.cpp
+  ECSLParserTest.cpp
   ECSLStmtDispatchTest.cpp
   CLANG_LIBS
   clangAST

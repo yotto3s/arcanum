@@ -312,11 +312,12 @@ TEST_F(ECSLParserFixture, UnknownClauseKeywordSkipped) {
 }
 
 TEST_F(ECSLParserFixture, AssignsNonNothingSkipped) {
-  // "assigns x;" is not valid in M1.  Parser should skip and continue.
+  // "assigns x;" is not valid in M1.  Parser should skip and continue,
+  // leaving the subsequent requires clause intact.
   auto result = Parse("assigns x; requires p > 0;");
-  if (result.has_value()) {
-    EXPECT_NE(result->RequiresCount(), 0u);
-  }
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->RequiresCount(), 1u);
+  EXPECT_FALSE(result->HasAssignsNothing());
 }
 
 TEST_F(ECSLParserFixture, MultilineAnnotation) {
