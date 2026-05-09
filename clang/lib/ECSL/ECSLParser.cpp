@@ -553,19 +553,16 @@ private:
       return std::nullopt;
     }
 
-    SourceRange range(start, LocStart(Current()));
     if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon) {
-      Consume();
-    } else {
-      EmitError(Current(), "expected ';' after requires predicate");
-      SkipToSemi();
-      return std::nullopt;
+      ECSLToken semi_tok = Consume();
+      ECSLFunctionContract::RequiresClause clause;
+      clause.m_pred = std::move(pred);
+      clause.m_loc = SourceRange(start, LocEnd(semi_tok));
+      return clause;
     }
-
-    ECSLFunctionContract::RequiresClause clause;
-    clause.m_pred = std::move(pred);
-    clause.m_loc = range;
-    return clause;
+    EmitError(Current(), "expected ';' after requires predicate");
+    SkipToSemi();
+    return std::nullopt;
   }
 
   /// Parse an ensures clause: 'ensures' <pred> ';'
@@ -579,19 +576,16 @@ private:
       return std::nullopt;
     }
 
-    SourceRange range(start, LocStart(Current()));
     if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon) {
-      Consume();
-    } else {
-      EmitError(Current(), "expected ';' after ensures predicate");
-      SkipToSemi();
-      return std::nullopt;
+      ECSLToken semi_tok = Consume();
+      ECSLFunctionContract::EnsuresClause clause;
+      clause.m_pred = std::move(pred);
+      clause.m_loc = SourceRange(start, LocEnd(semi_tok));
+      return clause;
     }
-
-    ECSLFunctionContract::EnsuresClause clause;
-    clause.m_pred = std::move(pred);
-    clause.m_loc = range;
-    return clause;
+    EmitError(Current(), "expected ';' after ensures predicate");
+    SkipToSemi();
+    return std::nullopt;
   }
 
   /// Parse an assigns clause: 'assigns' '\nothing' ';'  (M1 only)
@@ -609,18 +603,15 @@ private:
     }
     Consume(); // '\nothing'
 
-    SourceRange range(start, LocStart(Current()));
     if (!AtEnd() && Current().m_kind == ECSLTokenKind::Semicolon) {
-      Consume();
-    } else {
-      EmitError(Current(), "expected ';' after assigns \\nothing");
-      SkipToSemi();
-      return std::nullopt;
+      ECSLToken semi_tok = Consume();
+      ECSLFunctionContract::AssignsNothingClause clause;
+      clause.m_loc = SourceRange(start, LocEnd(semi_tok));
+      return clause;
     }
-
-    ECSLFunctionContract::AssignsNothingClause clause;
-    clause.m_loc = range;
-    return clause;
+    EmitError(Current(), "expected ';' after assigns \\nothing");
+    SkipToSemi();
+    return std::nullopt;
   }
 
   // ---- Data members -------------------------------------------------------

@@ -1,8 +1,8 @@
-// Test: M1 ECSL annotations are parsed and accepted without error or crash.
+// Test: M1 ECSL annotations are parsed and accepted without crash.
 // Checks that requires/ensures/assigns \nothing clauses, relational operators,
 // logical connectives, negation, \result, and multi-clause contracts all
 // survive the full pipeline (-fecsl, -fsyntax-only) without triggering an
-// assertion, crash, or unexpected diagnostic.
+// assertion or crash. This is a smoke test; diagnostic output is not checked.
 
 // RUN: %clang -cc1 -fecsl -fsyntax-only %s
 // RUN: %clang -cc1 -fsyntax-only %s
