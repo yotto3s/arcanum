@@ -475,12 +475,12 @@ private:
     }
 
     Consume(); // consume rel-op
-    // A null m_expr means ParseTerm already emitted an error; propagate the
+    // nullptr means ParseTerm already emitted an error; propagate the
     // failure so the enclosing clause parser recovers.
-    if (std::get<ECSLTerm::Expr>(lhs.Val()).m_expr == nullptr)
+    if (lhs.GetExpr() == nullptr)
       return nullptr;
     ECSLTerm rhs = ParseTerm();
-    if (std::get<ECSLTerm::Expr>(rhs.Val()).m_expr == nullptr)
+    if (rhs.GetExpr() == nullptr)
       return nullptr;
     SourceRange range(start_loc, rhs.Loc().getEnd());
     return ECSLPred::MakeRel(std::move(lhs), op, std::move(rhs), range);

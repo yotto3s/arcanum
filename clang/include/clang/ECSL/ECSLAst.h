@@ -140,34 +140,30 @@ public:
 /// A term in an ECSL annotation.
 ///
 /// Terms appear as the operands of relational predicates.
-/// Special values like `\result` are represented as `ECSLTerm::Expr` wrapping
-/// an `ECSLExpr::Result` node.
+/// Special values like `\result` are represented as an `ECSLExpr::Result`
+/// node inside the expression tree.
 struct ECSLTerm {
-  struct Expr {
-    std::unique_ptr<ECSLExpr> m_expr;
-  };
-
 private:
-  std::variant<Expr> m_val;
+  std::unique_ptr<ECSLExpr> m_expr;
   SourceRange m_loc;
 
 public:
-  ECSLTerm(std::variant<Expr> Val, SourceRange Loc)
-      : m_val(std::move(Val)), m_loc(Loc) {}
+  ECSLTerm(std::unique_ptr<ECSLExpr> E, SourceRange Loc)
+      : m_expr(std::move(E)), m_loc(Loc) {}
   ~ECSLTerm() = default;
   ECSLTerm(ECSLTerm &&) = default;
   ECSLTerm &operator=(ECSLTerm &&) = default;
 
-  const std::variant<Expr> &Val() const { return m_val; }
+  /// Non-owning pointer to the expression. Returns nullptr when the term is
+  /// in a failed/empty state (e.g. after a parse error).
+  const ECSLExpr *GetExpr() const { return m_expr.get(); }
   SourceRange Loc() const { return m_loc; }
 
   /// Move the inner ECSLExpr out of this term.
-  std::unique_ptr<ECSLExpr> TakeExpr() {
-    return std::move(std::get<Expr>(m_val).m_expr);
-  }
+  std::unique_ptr<ECSLExpr> TakeExpr() { return std::move(m_expr); }
 
   static ECSLTerm MakeExpr(std::unique_ptr<ECSLExpr> E, SourceRange Loc) {
-    return ECSLTerm{Expr{std::move(E)}, Loc};
+    return ECSLTerm{std::move(E), Loc};
   }
 };
 
