@@ -291,7 +291,7 @@ private:
 
   // ---- Diagnostics --------------------------------------------------------
 
-  void EmitError(const ECSLToken &tok, unsigned diag_id) {
+  void EmitError(const ECSLToken &tok, diag::kind diag_id) {
     if (!m_diags)
       return;
     m_diags->Report(LocStart(tok), diag_id);
