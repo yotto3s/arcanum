@@ -156,6 +156,11 @@ private:
 
     const ECSLToken &tok = Current();
 
+    if (tok.m_kind == ECSLTokenKind::BslashResult) {
+      Consume();
+      return ECSLExpr::MakeResult(LocRange(tok));
+    }
+
     if (tok.m_kind == ECSLTokenKind::FloatLiteral) {
       return nullptr; // \todo float literals not yet supported
     }
@@ -218,7 +223,6 @@ static bool IsClauseBoundary(ECSLTokenKind k) {
   case ECSLTokenKind::Bang:
   case ECSLTokenKind::Semicolon:
   case ECSLTokenKind::Eof:
-  case ECSLTokenKind::BslashResult:
   case ECSLTokenKind::BslashNothing:
     return true;
   default:
@@ -352,21 +356,9 @@ private:
 
   /// Parse a single ECSL term.
   ///
-  /// A term is one of:
-  ///   - \result  → ECSLTerm::Result
-  ///   - \nothing → ECSLTerm::Nothing
-  ///   - <C-expr> → ECSLTerm::Expr (sequence of distinct C/C++ tokens)
+  /// A term is a C expression fragment (sequence of C/C++ tokens), including
+  /// the special `\result` token which maps to `ECSLExpr::Result`.
   ECSLTerm ParseTerm() {
-    // Backslash terms are single tokens.
-    if (Current().m_kind == ECSLTokenKind::BslashResult) {
-      ECSLToken tok = Consume();
-      return ECSLTerm::MakeResult(LocRange(tok));
-    }
-    if (Current().m_kind == ECSLTokenKind::BslashNothing) {
-      ECSLToken tok = Consume();
-      return ECSLTerm::MakeNothing(LocRange(tok));
-    }
-
     // Collect a C expression fragment.  Track parenthesis depth so that
     // parenthesised arithmetic sub-expressions like (x + y) are not split at
     // a relational operator that follows the closing paren.
@@ -473,13 +465,8 @@ private:
     }
 
     if (!has_rel) {
-      // \result and \nothing must appear in a relational comparison.
-      if (!std::holds_alternative<ECSLTerm::Expr>(lhs.Val())) {
-        EmitError(Current(),
-                  "\\result and \\nothing require a relational operator");
-        return nullptr;
-      }
-      // If ECSLExprParser failed, an error was already emitted by ParseCTerm.
+      // No relational operator: treat as a bare boolean expression.
+      // A null m_expr means ParseTerm already emitted an error.
       SourceRange range(start_loc, lhs.Loc().getEnd());
       std::unique_ptr<ECSLExpr> cexpr = lhs.TakeExpr();
       if (!cexpr)
@@ -488,14 +475,12 @@ private:
     }
 
     Consume(); // consume rel-op
-    // A null m_expr inside an Expr term means ParseCTerm already emitted an
-    // error; propagate the failure so the enclosing clause parser recovers.
-    if (std::holds_alternative<ECSLTerm::Expr>(lhs.Val()) &&
-        std::get<ECSLTerm::Expr>(lhs.Val()).m_expr == nullptr)
+    // A null m_expr means ParseTerm already emitted an error; propagate the
+    // failure so the enclosing clause parser recovers.
+    if (std::get<ECSLTerm::Expr>(lhs.Val()).m_expr == nullptr)
       return nullptr;
     ECSLTerm rhs = ParseTerm();
-    if (std::holds_alternative<ECSLTerm::Expr>(rhs.Val()) &&
-        std::get<ECSLTerm::Expr>(rhs.Val()).m_expr == nullptr)
+    if (std::get<ECSLTerm::Expr>(rhs.Val()).m_expr == nullptr)
       return nullptr;
     SourceRange range(start_loc, rhs.Loc().getEnd());
     return ECSLPred::MakeRel(std::move(lhs), op, std::move(rhs), range);

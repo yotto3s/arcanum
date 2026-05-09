@@ -130,7 +130,11 @@ TEST_F(ECSLParserFixture, ParseEnsuresResult) {
   ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(ens.m_pred->Val()));
   auto &rel = std::get<ECSLPred::Rel>(ens.m_pred->Val());
   EXPECT_EQ(rel.m_op, RelOp::Gt);
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.Val()));
+  // \result maps to ECSLTerm::Expr wrapping ECSLExpr::Result.
+  ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(rel.m_lhs.Val()));
+  auto &lhs_expr = std::get<ECSLTerm::Expr>(rel.m_lhs.Val());
+  ASSERT_NE(lhs_expr.m_expr.get(), nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLExpr::Result>(lhs_expr.m_expr->Val()));
 }
 
 TEST_F(ECSLParserFixture, ParseEnsuresResultEqArithmetic) {
@@ -143,7 +147,11 @@ TEST_F(ECSLParserFixture, ParseEnsuresResultEqArithmetic) {
   ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(ens.m_pred->Val()));
   auto &rel = std::get<ECSLPred::Rel>(ens.m_pred->Val());
   EXPECT_EQ(rel.m_op, RelOp::Eq);
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.Val()));
+  // LHS: \result — ECSLTerm::Expr wrapping ECSLExpr::Result.
+  ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(rel.m_lhs.Val()));
+  auto &lhs_expr = std::get<ECSLTerm::Expr>(rel.m_lhs.Val());
+  ASSERT_NE(lhs_expr.m_expr.get(), nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLExpr::Result>(lhs_expr.m_expr->Val()));
   // RHS: "x + y" — ECSLTerm::Expr wrapping a BinOp(Add, Ident(x), Ident(y)).
   ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(rel.m_rhs.Val()));
   auto &rhs_expr = std::get<ECSLTerm::Expr>(rel.m_rhs.Val());
@@ -151,6 +159,50 @@ TEST_F(ECSLParserFixture, ParseEnsuresResultEqArithmetic) {
   ASSERT_TRUE(std::holds_alternative<ECSLExpr::BinOp>(rhs_expr.m_expr->Val()));
   EXPECT_EQ(std::get<ECSLExpr::BinOp>(rhs_expr.m_expr->Val()).m_op,
             ExprOp::Add);
+}
+
+TEST_F(ECSLParserFixture, ParseEnsuresResultArithmeticLhs) {
+  // ensures \result + 1 > 5;
+  // LHS is BinOp(Add, Result, IntLit("1")); RHS is IntLit("5").
+  auto result = Parse("ensures \\result + 1 > 5;");
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(result->EnsuresCount(), 1u);
+
+  auto &rel = std::get<ECSLPred::Rel>(result->EnsuresAt(0).m_pred->Val());
+  EXPECT_EQ(rel.m_op, RelOp::Gt);
+  // LHS: BinOp(Add, Result, IntLit("1"))
+  ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(rel.m_lhs.Val()));
+  auto *lhs_expr = std::get<ECSLTerm::Expr>(rel.m_lhs.Val()).m_expr.get();
+  ASSERT_NE(lhs_expr, nullptr);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::BinOp>(lhs_expr->Val()));
+  auto &binop = std::get<ECSLExpr::BinOp>(lhs_expr->Val());
+  EXPECT_EQ(binop.m_op, ExprOp::Add);
+  ASSERT_NE(binop.m_lhs.get(), nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLExpr::Result>(binop.m_lhs->Val()));
+  ASSERT_NE(binop.m_rhs.get(), nullptr);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::IntLit>(binop.m_rhs->Val()));
+  EXPECT_EQ(std::get<ECSLExpr::IntLit>(binop.m_rhs->Val()).m_val, "1");
+  // RHS: IntLit("5")
+  ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(rel.m_rhs.Val()));
+  auto *rhs_expr = std::get<ECSLTerm::Expr>(rel.m_rhs.Val()).m_expr.get();
+  ASSERT_NE(rhs_expr, nullptr);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::IntLit>(rhs_expr->Val()));
+  EXPECT_EQ(std::get<ECSLExpr::IntLit>(rhs_expr->Val()).m_val, "5");
+}
+
+TEST_F(ECSLParserFixture, ParseEnsuresResultMultiply) {
+  // ensures \result * 2 == x;
+  auto result = Parse("ensures \\result * 2 == x;");
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(result->EnsuresCount(), 1u);
+
+  auto &rel = std::get<ECSLPred::Rel>(result->EnsuresAt(0).m_pred->Val());
+  EXPECT_EQ(rel.m_op, RelOp::Eq);
+  ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(rel.m_lhs.Val()));
+  auto *lhs_expr = std::get<ECSLTerm::Expr>(rel.m_lhs.Val()).m_expr.get();
+  ASSERT_NE(lhs_expr, nullptr);
+  ASSERT_TRUE(std::holds_alternative<ECSLExpr::BinOp>(lhs_expr->Val()));
+  EXPECT_EQ(std::get<ECSLExpr::BinOp>(lhs_expr->Val()).m_op, ExprOp::Mul);
 }
 
 // ---------------------------------------------------------------------------
@@ -275,7 +327,10 @@ TEST_F(ECSLParserFixture, ParseResultTerm) {
   ASSERT_TRUE(result.has_value());
   ASSERT_EQ(result->EnsuresCount(), 1u);
   auto &rel = std::get<ECSLPred::Rel>(result->EnsuresAt(0).m_pred->Val());
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.Val()));
+  ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(rel.m_lhs.Val()));
+  auto *lhs_expr = std::get<ECSLTerm::Expr>(rel.m_lhs.Val()).m_expr.get();
+  ASSERT_NE(lhs_expr, nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLExpr::Result>(lhs_expr->Val()));
 }
 
 TEST_F(ECSLParserFixture, ParseExprTermInRelPred) {

@@ -34,14 +34,14 @@ TEST(ECSLTermTest, MakeExprSetsKindAndExpr) {
   EXPECT_EQ(std::get<ECSLTerm::Expr>(t.Val()).m_expr.get(), raw);
 }
 
-TEST(ECSLTermTest, MakeResultSetsKind) {
-  ECSLTerm t = ECSLTerm::MakeResult(SourceRange{});
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(t.Val()));
-}
-
-TEST(ECSLTermTest, MakeNothingSetsKind) {
-  ECSLTerm t = ECSLTerm::MakeNothing(SourceRange{});
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Nothing>(t.Val()));
+TEST(ECSLTermTest, MakeResultExprSetsKind) {
+  // \result is now represented as ECSLTerm::Expr wrapping ECSLExpr::Result.
+  ECSLTerm t =
+      ECSLTerm::MakeExpr(ECSLExpr::MakeResult(SourceRange{}), SourceRange{});
+  ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(t.Val()));
+  auto *e = std::get<ECSLTerm::Expr>(t.Val()).m_expr.get();
+  ASSERT_NE(e, nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLExpr::Result>(e->Val()));
 }
 
 // ---------------------------------------------------------------------------
@@ -185,8 +185,9 @@ TEST_F(ECSLFunctionContractTest, RequiresClauseStoresModAndPred) {
 }
 
 TEST_F(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
-  // ensures \result == 0
-  ECSLTerm result_term = ECSLTerm::MakeResult(SourceRange{});
+  // ensures \result == 0: \result is ECSLTerm::Expr wrapping ECSLExpr::Result.
+  ECSLTerm result_term =
+      ECSLTerm::MakeExpr(ECSLExpr::MakeResult(SourceRange{}), SourceRange{});
   ECSLTerm zero_term = ECSLTerm::MakeExpr(
       ECSLExpr::MakeIntLit("0", SourceRange{}), SourceRange{});
   auto pred = ECSLPred::MakeRel(std::move(result_term), RelOp::Eq,
@@ -198,7 +199,10 @@ TEST_F(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
   ASSERT_NE(ens.m_pred, nullptr);
   ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(ens.m_pred->Val()));
   auto &rel = std::get<ECSLPred::Rel>(ens.m_pred->Val());
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.Val()));
+  ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(rel.m_lhs.Val()));
+  auto *lhs_expr = std::get<ECSLTerm::Expr>(rel.m_lhs.Val()).m_expr.get();
+  ASSERT_NE(lhs_expr, nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLExpr::Result>(lhs_expr->Val()));
   EXPECT_EQ(rel.m_op, RelOp::Eq);
 }
 
@@ -227,7 +231,8 @@ TEST_F(ECSLFunctionContractTest, ContractWithMultipleClauses) {
   {
     ECSLFunctionContract::EnsuresClause ens;
     ens.m_pred = ECSLPred::MakeRel(
-        ECSLTerm::MakeResult(SourceRange{}), RelOp::Gt,
+        ECSLTerm::MakeExpr(ECSLExpr::MakeResult(SourceRange{}), SourceRange{}),
+        RelOp::Gt,
         ECSLTerm::MakeExpr(ECSLExpr::MakeIntLit("0", SourceRange{}),
                            SourceRange{}),
         SourceRange{});
