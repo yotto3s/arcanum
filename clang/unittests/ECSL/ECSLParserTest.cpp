@@ -482,4 +482,20 @@ TEST_F(ECSLParserFixture, DiagUnexpectedClauseToken) {
   EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_unexpected_clause_token);
 }
 
+TEST_F(ECSLParserFixture, DiagExpectedTermEmptyRhs) {
+  // "x > ;" — the RHS C-term scanner immediately hits ';' (a clause boundary)
+  // without consuming any tokens, triggering err_ecsl_expected_term.
+  auto ids = ParseWithDiags("requires x > ;");
+  ASSERT_FALSE(ids.empty());
+  EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_expected_term);
+}
+
+TEST_F(ECSLParserFixture, DiagInvalidCExpr) {
+  // "requires + > 0;" — '+' alone is not a valid C expression; the term
+  // scanner consumes it but ECSLExprParser rejects the token span.
+  auto ids = ParseWithDiags("requires + > 0;");
+  ASSERT_FALSE(ids.empty());
+  EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_invalid_c_expr);
+}
+
 } // namespace

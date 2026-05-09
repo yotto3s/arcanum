@@ -223,19 +223,19 @@ CATEGORY(TRAP, INSTALLAPI)
 CATEGORY(ECSL, TRAP)
 #undef CATEGORY
 
-  // Avoid out of bounds reads.
-  if (ID + Offset >= StaticDiagInfoSize)
-    return nullptr;
+// Avoid out of bounds reads.
+if (ID + Offset >= StaticDiagInfoSize)
+  return nullptr;
 
-  assert(ID < StaticDiagInfoSize && Offset < StaticDiagInfoSize);
+assert(ID < StaticDiagInfoSize && Offset < StaticDiagInfoSize);
 
-  const StaticDiagInfoRec *Found = &StaticDiagInfo[ID + Offset];
-  // If the diag id doesn't match we found a different diag, abort. This can
-  // happen when this function is called with an ID that points into a hole in
-  // the diagID space.
-  if (Found->DiagID != DiagID)
-    return nullptr;
-  return Found;
+const StaticDiagInfoRec *Found = &StaticDiagInfo[ID + Offset];
+// If the diag id doesn't match we found a different diag, abort. This can
+// happen when this function is called with an ID that points into a hole in
+// the diagID space.
+if (Found->DiagID != DiagID)
+  return nullptr;
+return Found;
 }
 
 //===----------------------------------------------------------------------===//
