@@ -83,20 +83,23 @@ struct ECSLExpr {
     ExprOp m_op = ExprOp::Neg;
     std::unique_ptr<ECSLExpr> m_operand;
   };
+  /// The special value `\result`, referring to the function's return value.
+  struct Result {};
 
 private:
-  std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp> m_val;
+  std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp, Result> m_val;
   SourceRange m_loc;
 
 public:
-  ECSLExpr(std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp> Val,
+  ECSLExpr(std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp, Result> Val,
            SourceRange Loc)
       : m_val(std::move(Val)), m_loc(Loc) {}
   ~ECSLExpr() = default;
   ECSLExpr(ECSLExpr &&) = default;
   ECSLExpr &operator=(ECSLExpr &&) = default;
 
-  const std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp> &Val() const {
+  const std::variant<IntLit, BoolLit, Ident, BinOp, UnaryOp, Result> &
+  Val() const {
     return m_val;
   }
   SourceRange Loc() const { return m_loc; }
@@ -128,51 +131,44 @@ public:
   MakeUnary(ExprOp Op, std::unique_ptr<ECSLExpr> Operand, SourceRange Loc) {
     return std::make_unique<ECSLExpr>(UnaryOp{Op, std::move(Operand)}, Loc);
   }
+
+  static std::unique_ptr<ECSLExpr> MakeResult(SourceRange Loc) {
+    return std::make_unique<ECSLExpr>(Result{}, Loc);
+  }
 };
 
 /// A term in an ECSL annotation.
 ///
 /// Terms appear as the operands of relational predicates.
+/// Special values like `\result` are represented as an `ECSLExpr::Result`
+/// node inside the expression tree.
+///
+/// Note: `\nothing` is NOT a general predicate term in M1.  It is valid only
+/// as the operand of an assigns clause ("assigns \nothing;") and is handled
+/// directly by ParseAssignsClause.  Encountering `\nothing` at predicate level
+/// is a parse error.
 struct ECSLTerm {
-  struct Expr {
-    std::unique_ptr<ECSLExpr> m_expr;
-  };
-  struct Result {};
-  struct Nothing {};
-
 private:
-  std::variant<Expr, Result, Nothing> m_val;
+  std::unique_ptr<ECSLExpr> m_expr;
   SourceRange m_loc;
 
 public:
-  ECSLTerm(std::variant<Expr, Result, Nothing> Val, SourceRange Loc)
-      : m_val(std::move(Val)), m_loc(Loc) {}
+  ECSLTerm(std::unique_ptr<ECSLExpr> E, SourceRange Loc)
+      : m_expr(std::move(E)), m_loc(Loc) {}
   ~ECSLTerm() = default;
   ECSLTerm(ECSLTerm &&) = default;
   ECSLTerm &operator=(ECSLTerm &&) = default;
 
-  const std::variant<Expr, Result, Nothing> &Val() const { return m_val; }
+  /// Non-owning pointer to the expression. Returns nullptr when the term is
+  /// in a failed/empty state (e.g. after a parse error).
+  const ECSLExpr *GetExpr() const { return m_expr.get(); }
   SourceRange Loc() const { return m_loc; }
 
-  /// Move the inner ECSLExpr out of an Expr term.
-  /// \pre Val() must hold an Expr alternative; the term retains the Expr
-  /// alternative with a moved-from (null) m_expr after extraction.
-  std::unique_ptr<ECSLExpr> TakeExpr() {
-    assert(std::holds_alternative<Expr>(m_val) &&
-           "TakeExpr() called on non-Expr ECSLTerm");
-    return std::move(std::get<Expr>(m_val).m_expr);
-  }
+  /// Move the inner ECSLExpr out of this term.
+  std::unique_ptr<ECSLExpr> TakeExpr() { return std::move(m_expr); }
 
   static ECSLTerm MakeExpr(std::unique_ptr<ECSLExpr> E, SourceRange Loc) {
-    return ECSLTerm{Expr{std::move(E)}, Loc};
-  }
-
-  static ECSLTerm MakeResult(SourceRange Loc) {
-    return ECSLTerm{Result{}, Loc};
-  }
-
-  static ECSLTerm MakeNothing(SourceRange Loc) {
-    return ECSLTerm{Nothing{}, Loc};
+    return ECSLTerm{std::move(E), Loc};
   }
 };
 

@@ -11,10 +11,6 @@
 /// internal ECSLExprParser recursive-descent parser for C/C++ arithmetic
 /// sub-expressions.
 ///
-/// \todo ECSLParserImpl (contract clause grammar: requires/ensures/assigns)
-///       is not yet implemented; ECSLParser::ParseFunctionContract always
-///       returns std::nullopt until ECSLParserImpl is wired in.
-///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_ECSL_ECSLPARSER_H
@@ -35,10 +31,6 @@ namespace ecsl {
 /// Stateless parser front-end.  Instantiate once and call
 /// ParseFunctionContract for each annotation; parsing state is created
 /// per call.
-///
-/// \todo ParseFunctionContract is currently a stub returning std::nullopt;
-///       it will be implemented once ECSLParserImpl (contract clause grammar)
-///       is wired in.
 class ECSLParser {
 public:
   ECSLParser() = default;
@@ -47,7 +39,10 @@ public:
   ///
   /// \param Text  Raw annotation body (comment delimiters already stripped).
   /// \param Loc   Source location of the first character of \p Text.
-  ///              Pass an invalid SourceLocation to suppress location info.
+  ///              Must be a valid SourceLocation; use
+  ///              \c SourceLocation::getFromRawEncoding(1) when location
+  ///              info is not needed.  Passing an invalid SourceLocation
+  ///              will assert in debug builds.
   /// \param Diags Optional diagnostics engine; null means errors are silent.
   ///
   /// Returns std::nullopt when no valid clause was parsed (empty body,

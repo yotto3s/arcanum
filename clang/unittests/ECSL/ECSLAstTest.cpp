@@ -26,22 +26,20 @@ namespace {
 // ECSLTerm
 // ---------------------------------------------------------------------------
 
-TEST(ECSLTermTest, MakeExprSetsKindAndExpr) {
+TEST(ECSLTermTest, MakeExprSetsExpr) {
   auto expr = ECSLExpr::MakeIntLit("7", SourceRange{});
   ECSLExpr *raw = expr.get();
   ECSLTerm t = ECSLTerm::MakeExpr(std::move(expr), SourceRange{});
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Expr>(t.Val()));
-  EXPECT_EQ(std::get<ECSLTerm::Expr>(t.Val()).m_expr.get(), raw);
+  EXPECT_EQ(t.GetExpr(), raw);
 }
 
-TEST(ECSLTermTest, MakeResultSetsKind) {
-  ECSLTerm t = ECSLTerm::MakeResult(SourceRange{});
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(t.Val()));
-}
-
-TEST(ECSLTermTest, MakeNothingSetsKind) {
-  ECSLTerm t = ECSLTerm::MakeNothing(SourceRange{});
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Nothing>(t.Val()));
+TEST(ECSLTermTest, MakeResultExprSetsKind) {
+  // \result is now represented as ECSLTerm::MakeExpr wrapping ECSLExpr::Result.
+  ECSLTerm t =
+      ECSLTerm::MakeExpr(ECSLExpr::MakeResult(SourceRange{}), SourceRange{});
+  auto *e = t.GetExpr();
+  ASSERT_NE(e, nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLExpr::Result>(e->Val()));
 }
 
 // ---------------------------------------------------------------------------
@@ -79,8 +77,8 @@ TEST(ECSLPredTest, MakeRelSetsFieldsCorrectly) {
   ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(p->Val()));
   auto &rel = std::get<ECSLPred::Rel>(p->Val());
   EXPECT_EQ(rel.m_op, RelOp::Gt);
-  EXPECT_EQ(std::get<ECSLTerm::Expr>(rel.m_lhs.Val()).m_expr.get(), raw_a);
-  EXPECT_EQ(std::get<ECSLTerm::Expr>(rel.m_rhs.Val()).m_expr.get(), raw_b);
+  EXPECT_EQ(rel.m_lhs.GetExpr(), raw_a);
+  EXPECT_EQ(rel.m_rhs.GetExpr(), raw_b);
 }
 
 class ECSLPredRelOpTest : public ::testing::TestWithParam<RelOp> {};
@@ -185,8 +183,9 @@ TEST_F(ECSLFunctionContractTest, RequiresClauseStoresModAndPred) {
 }
 
 TEST_F(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
-  // ensures \result == 0
-  ECSLTerm result_term = ECSLTerm::MakeResult(SourceRange{});
+  // ensures \result == 0: \result is ECSLTerm::Expr wrapping ECSLExpr::Result.
+  ECSLTerm result_term =
+      ECSLTerm::MakeExpr(ECSLExpr::MakeResult(SourceRange{}), SourceRange{});
   ECSLTerm zero_term = ECSLTerm::MakeExpr(
       ECSLExpr::MakeIntLit("0", SourceRange{}), SourceRange{});
   auto pred = ECSLPred::MakeRel(std::move(result_term), RelOp::Eq,
@@ -198,7 +197,9 @@ TEST_F(ECSLFunctionContractTest, EnsuresClauseStoresResultTerm) {
   ASSERT_NE(ens.m_pred, nullptr);
   ASSERT_TRUE(std::holds_alternative<ECSLPred::Rel>(ens.m_pred->Val()));
   auto &rel = std::get<ECSLPred::Rel>(ens.m_pred->Val());
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Result>(rel.m_lhs.Val()));
+  auto *lhs_expr = rel.m_lhs.GetExpr();
+  ASSERT_NE(lhs_expr, nullptr);
+  EXPECT_TRUE(std::holds_alternative<ECSLExpr::Result>(lhs_expr->Val()));
   EXPECT_EQ(rel.m_op, RelOp::Eq);
 }
 
@@ -227,7 +228,8 @@ TEST_F(ECSLFunctionContractTest, ContractWithMultipleClauses) {
   {
     ECSLFunctionContract::EnsuresClause ens;
     ens.m_pred = ECSLPred::MakeRel(
-        ECSLTerm::MakeResult(SourceRange{}), RelOp::Gt,
+        ECSLTerm::MakeExpr(ECSLExpr::MakeResult(SourceRange{}), SourceRange{}),
+        RelOp::Gt,
         ECSLTerm::MakeExpr(ECSLExpr::MakeIntLit("0", SourceRange{}),
                            SourceRange{}),
         SourceRange{});
@@ -247,13 +249,12 @@ TEST(ECSLTermTest, TakeExprExtractsExpr) {
   ECSLExpr *raw = expr.get();
   ECSLTerm term = ECSLTerm::MakeExpr(std::move(expr), SourceRange{});
 
-  ASSERT_TRUE(std::holds_alternative<ECSLTerm::Expr>(term.Val()));
+  ASSERT_NE(term.GetExpr(), nullptr);
   auto taken = term.TakeExpr();
   ASSERT_NE(taken, nullptr);
   EXPECT_EQ(taken.get(), raw);
-  // After extraction the term still holds the Expr alternative, but m_expr is
-  // null (moved-from).
-  EXPECT_TRUE(std::holds_alternative<ECSLTerm::Expr>(term.Val()));
+  // After extraction m_expr is null (moved-from).
+  EXPECT_EQ(term.GetExpr(), nullptr);
 }
 
 TEST_F(ECSLFunctionContractTest, RequiresAtReturnsCorrectClause) {
