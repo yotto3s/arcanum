@@ -428,10 +428,12 @@ private:
       if (!term_paren) {
         Consume(); // '('
         auto pred = ParseOr();
-        if (!AtEnd() && Current().m_kind == ECSLTokenKind::RParen)
+        if (!AtEnd() && Current().m_kind == ECSLTokenKind::RParen) {
           Consume();
-        else
+        } else {
           EmitError(Current(), "expected ')' after predicate");
+          return nullptr;
+        }
         return pred;
       }
     }

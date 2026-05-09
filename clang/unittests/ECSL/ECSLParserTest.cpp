@@ -387,6 +387,13 @@ TEST_F(ECSLParserFixture, RelNullRhsRecovery) {
   EXPECT_TRUE(result->HasAssignsNothing());
 }
 
+TEST_F(ECSLParserFixture, MissingClosingParenReturnsNullopt) {
+  // "(x > 0" without closing ')' — ParseAtom emits an error and returns
+  // nullptr, propagating failure so the clause is not accepted.
+  auto result = Parse("requires (x > 0;");
+  EXPECT_FALSE(result.has_value());
+}
+
 TEST_F(ECSLParserFixture, MultilineAnnotation) {
   const char *ann = "requires x > 0;\n"
                     "ensures \\result > 0;\n"
