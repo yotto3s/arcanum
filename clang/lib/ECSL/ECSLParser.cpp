@@ -293,14 +293,15 @@ private:
   /// Skip tokens until a ';' or Eof is consumed (inclusive of ';').
   void SkipToSemi() {
     while (!AtEnd()) {
-      ECSLTokenKind k = Current().m_kind;
-      if (k == ECSLTokenKind::Semicolon) {
+      switch (Current().m_kind) {
+      case ECSLTokenKind::Semicolon:
         Consume();
         return;
-      }
-      if (k == ECSLTokenKind::Eof)
+      case ECSLTokenKind::Eof:
         return;
-      Consume();
+      default:
+        Consume();
+      }
     }
   }
 
@@ -313,14 +314,21 @@ private:
     assert(m_tokens[from].m_kind == ECSLTokenKind::LParen);
     unsigned depth = 1;
     for (unsigned i = from + 1; i < m_tokens.size(); ++i) {
-      ECSLTokenKind k = m_tokens[i].m_kind;
-      if (k == ECSLTokenKind::LParen)
+      switch (m_tokens[i].m_kind) {
+      case ECSLTokenKind::LParen:
         ++depth;
-      else if (k == ECSLTokenKind::RParen) {
-        if (--depth == 0)
-          return i;
-      } else if (k == ECSLTokenKind::Eof)
         break;
+      case ECSLTokenKind::RParen:
+        --depth;
+        if (depth == 0) {
+          return i;
+        }
+        break;
+      case ECSLTokenKind::Eof:
+        return m_tokens.size();
+      default:
+        break;
+      }
     }
     return m_tokens.size();
   }
@@ -347,8 +355,8 @@ private:
   /// A term is one of:
   ///   - \result  → ECSLTerm::Result
   ///   - \nothing → ECSLTerm::Nothing
-  ///   - <C-expr> → ECSLTerm::Expr (sequence of distinct C tokens)
-  ECSLTerm ParseCTerm() {
+  ///   - <C-expr> → ECSLTerm::Expr (sequence of distinct C/C++ tokens)
+  ECSLTerm ParseTerm() {
     // Backslash terms are single tokens.
     if (Current().m_kind == ECSLTokenKind::BslashResult) {
       ECSLToken tok = Consume();
@@ -436,7 +444,7 @@ private:
   /// Parse a comparison: <term> rel-op <term>  OR  bare <term> (C predicate).
   std::unique_ptr<ECSLPred> ParseComparison() {
     SourceLocation start_loc = LocStart(Current());
-    ECSLTerm lhs = ParseCTerm();
+    ECSLTerm lhs = ParseTerm();
 
     RelOp op;
     bool has_rel = true;
@@ -485,7 +493,7 @@ private:
     if (std::holds_alternative<ECSLTerm::Expr>(lhs.Val()) &&
         std::get<ECSLTerm::Expr>(lhs.Val()).m_expr == nullptr)
       return nullptr;
-    ECSLTerm rhs = ParseCTerm();
+    ECSLTerm rhs = ParseTerm();
     if (std::holds_alternative<ECSLTerm::Expr>(rhs.Val()) &&
         std::get<ECSLTerm::Expr>(rhs.Val()).m_expr == nullptr)
       return nullptr;
