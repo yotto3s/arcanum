@@ -11,10 +11,6 @@
 /// internal ECSLExprParser recursive-descent parser for C/C++ arithmetic
 /// sub-expressions.
 ///
-/// \todo ECSLParserImpl (contract clause grammar: requires/ensures/assigns)
-///       is not yet implemented; ECSLParser::ParseFunctionContract always
-///       returns std::nullopt until ECSLParserImpl is wired in.
-///
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_ECSL_ECSLPARSER_H
@@ -35,10 +31,6 @@ namespace ecsl {
 /// Stateless parser front-end.  Instantiate once and call
 /// ParseFunctionContract for each annotation; parsing state is created
 /// per call.
-///
-/// \todo ParseFunctionContract is currently a stub returning std::nullopt;
-///       it will be implemented once ECSLParserImpl (contract clause grammar)
-///       is wired in.
 class ECSLParser {
 public:
   ECSLParser() = default;

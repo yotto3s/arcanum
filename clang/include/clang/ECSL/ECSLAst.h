@@ -142,6 +142,11 @@ public:
 /// Terms appear as the operands of relational predicates.
 /// Special values like `\result` are represented as an `ECSLExpr::Result`
 /// node inside the expression tree.
+///
+/// Note: `\nothing` is NOT a general predicate term in M1.  It is valid only
+/// as the operand of an assigns clause ("assigns \nothing;") and is handled
+/// directly by ParseAssignsClause.  Encountering `\nothing` at predicate level
+/// is a parse error.
 struct ECSLTerm {
 private:
   std::unique_ptr<ECSLExpr> m_expr;

@@ -210,6 +210,11 @@ private:
 // ---------------------------------------------------------------------------
 
 /// Returns true if \p k terminates a C-term scan at predicate level (depth 0).
+///
+/// \c BslashNothing is listed here because \nothing is NOT a general predicate
+/// term in M1 — it is valid only as the sole operand of an assigns clause
+/// (i.e. "assigns \nothing;").  Encountering it at predicate level is a parse
+/// error and the assigns-clause parser handles it explicitly.
 static bool IsClauseBoundary(ECSLTokenKind k) {
   switch (k) {
   case ECSLTokenKind::EqEq:
@@ -717,6 +722,11 @@ PendingAnnotation ecsl::parseECSLAnnotation(PendingAnnotation PA) {
   SourceLocation body_loc = PA.Loc;
   if (body_loc.isValid()) {
     body_loc = body_loc.getLocWithOffset(3);
+  } else {
+    // No real location info; use a synthetic valid location so that
+    // ParseFunctionContract's assert is satisfied while leaving all
+    // SourceRanges meaningless-but-valid.
+    body_loc = SourceLocation::getFromRawEncoding(1);
   }
   parser.ParseFunctionContract(PA.Body, body_loc);
   return PA;
