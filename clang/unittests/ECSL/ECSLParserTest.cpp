@@ -12,15 +12,52 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/ECSL/ECSLParser.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticECSL.h"
+#include "clang/Basic/DiagnosticIDs.h"
+#include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/SourceLocation.h"
 #include "gtest/gtest.h"
 #include <memory>
 #include <optional>
+#include <vector>
 
 using namespace clang;
 using namespace clang::ecsl;
 
 namespace {
+
+// ---------------------------------------------------------------------------
+// Diagnostic emission helpers
+// ---------------------------------------------------------------------------
+
+/// Records diag IDs emitted through a DiagnosticsEngine.
+struct RecordingConsumer : public DiagnosticConsumer {
+  std::vector<unsigned> m_ids;
+
+  void HandleDiagnostic(DiagnosticsEngine::Level,
+                        const Diagnostic &info) override {
+    m_ids.push_back(info.getID());
+  }
+};
+
+/// Convenience: parse \p text with a live DiagnosticsEngine and return the
+/// recorded diagnostic IDs.
+static std::vector<unsigned> ParseWithDiags(llvm::StringRef text) {
+  auto consumer = std::make_unique<RecordingConsumer>();
+  RecordingConsumer *consumer_ptr = consumer.get();
+
+  IntrusiveRefCntPtr<DiagnosticIDs> diag_id = DiagnosticIDs::create();
+  DiagnosticOptions diag_opts;
+  DiagnosticsEngine diags(diag_id, diag_opts, consumer.release());
+
+  ECSLParser parser;
+  parser.ParseFunctionContract(text, SourceLocation::getFromRawEncoding(1),
+                               &diags);
+  return consumer_ptr->m_ids;
+}
+
+// ---------------------------------------------------------------------------
 
 /// Convenience: parse a function contract annotation.
 static std::optional<ECSLFunctionContract> Parse(llvm::StringRef text) {
@@ -403,6 +440,62 @@ TEST_F(ECSLParserFixture, MultilineAnnotation) {
   EXPECT_EQ(result->RequiresCount(), 1u);
   EXPECT_EQ(result->EnsuresCount(), 1u);
   EXPECT_TRUE(result->HasAssignsNothing());
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostic emission
+// ---------------------------------------------------------------------------
+
+TEST_F(ECSLParserFixture, DiagMissingClosingParen) {
+  auto ids = ParseWithDiags("requires (x > 0;");
+  ASSERT_EQ(ids.size(), 1u);
+  EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_expected_rparen);
+}
+
+TEST_F(ECSLParserFixture, DiagMissingSemiAfterRequires) {
+  auto ids = ParseWithDiags("requires x > 0");
+  ASSERT_FALSE(ids.empty());
+  EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_expected_semi_after_requires);
+}
+
+TEST_F(ECSLParserFixture, DiagMissingSemiAfterEnsures) {
+  auto ids = ParseWithDiags("ensures \\result > 0");
+  ASSERT_FALSE(ids.empty());
+  EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_expected_semi_after_ensures);
+}
+
+TEST_F(ECSLParserFixture, DiagAssignsNonNothing) {
+  auto ids = ParseWithDiags("assigns x;");
+  ASSERT_FALSE(ids.empty());
+  EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_assigns_not_nothing);
+}
+
+TEST_F(ECSLParserFixture, DiagMissingSemiAfterAssignsNothing) {
+  auto ids = ParseWithDiags("assigns \\nothing");
+  ASSERT_FALSE(ids.empty());
+  EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_expected_semi_after_assigns);
+}
+
+TEST_F(ECSLParserFixture, DiagUnexpectedClauseToken) {
+  auto ids = ParseWithDiags("unknown x > 0;");
+  ASSERT_FALSE(ids.empty());
+  EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_unexpected_clause_token);
+}
+
+TEST_F(ECSLParserFixture, DiagExpectedTermEmptyRhs) {
+  // "x > ;" — the RHS C-term scanner immediately hits ';' (a clause boundary)
+  // without consuming any tokens, triggering err_ecsl_expected_term.
+  auto ids = ParseWithDiags("requires x > ;");
+  ASSERT_FALSE(ids.empty());
+  EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_expected_term);
+}
+
+TEST_F(ECSLParserFixture, DiagInvalidCExpr) {
+  // "requires + > 0;" — '+' alone is not a valid C expression; the term
+  // scanner consumes it but ECSLExprParser rejects the token span.
+  auto ids = ParseWithDiags("requires + > 0;");
+  ASSERT_FALSE(ids.empty());
+  EXPECT_EQ(ids[0], (unsigned)diag::err_ecsl_invalid_c_expr);
 }
 
 } // namespace

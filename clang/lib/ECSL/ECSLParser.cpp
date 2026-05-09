@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/ECSL/ECSLParser.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticECSL.h"
 #include "clang/ECSL/ECSLLexer.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -289,12 +291,10 @@ private:
 
   // ---- Diagnostics --------------------------------------------------------
 
-  void EmitError(const ECSLToken & /*tok*/, const char * /*msg*/) {
-    // Intentionally a no-op for M1 — DiagnosticsEngine* is accepted and
-    // stored but is not invoked in this PR.  Typed diag:: IDs are wired in
-    // PR 4/4.  All error-recovery is structural (SkipToSemi / return nullopt)
-    // so callers still behave correctly without diagnostic output.
-    (void)m_diags;
+  void EmitError(const ECSLToken &tok, diag::kind diag_id) {
+    if (!m_diags)
+      return;
+    m_diags->Report(LocStart(tok), diag_id);
   }
 
   // ---- Error recovery -----------------------------------------------------
@@ -394,7 +394,7 @@ private:
     }
 
     if (m_pos == start) {
-      EmitError(Current(), "expected expression term");
+      EmitError(Current(), diag::err_ecsl_expected_term);
       return ECSLTerm::MakeExpr(nullptr, SourceRange{});
     }
 
@@ -402,7 +402,7 @@ private:
     std::unique_ptr<ECSLExpr> expr =
         ECSLExprParser(span, m_base_loc).ParseExpr();
     if (!expr)
-      EmitError(m_tokens[start], "invalid C expression");
+      EmitError(m_tokens[start], diag::err_ecsl_invalid_c_expr);
 
     SourceRange range(LocStart(m_tokens[start]),
                       LocEnd(m_tokens[m_pos > start ? m_pos - 1 : start]));
@@ -431,7 +431,7 @@ private:
         if (!AtEnd() && Current().m_kind == ECSLTokenKind::RParen) {
           Consume();
         } else {
-          EmitError(Current(), "expected ')' after predicate");
+          EmitError(Current(), diag::err_ecsl_expected_rparen);
           return nullptr;
         }
         return pred;
@@ -560,7 +560,7 @@ private:
       clause.m_loc = SourceRange(start, LocEnd(semi_tok));
       return clause;
     }
-    EmitError(Current(), "expected ';' after requires predicate");
+    EmitError(Current(), diag::err_ecsl_expected_semi_after_requires);
     SkipToSemi();
     return std::nullopt;
   }
@@ -583,7 +583,7 @@ private:
       clause.m_loc = SourceRange(start, LocEnd(semi_tok));
       return clause;
     }
-    EmitError(Current(), "expected ';' after ensures predicate");
+    EmitError(Current(), diag::err_ecsl_expected_semi_after_ensures);
     SkipToSemi();
     return std::nullopt;
   }
@@ -595,9 +595,7 @@ private:
     SourceLocation start = LocStart(Consume());
 
     if (Current().m_kind != ECSLTokenKind::BslashNothing) {
-      EmitError(Current(),
-                "expected '\\nothing' after 'assigns' (M1 supports only "
-                "'assigns \\nothing')");
+      EmitError(Current(), diag::err_ecsl_assigns_not_nothing);
       SkipToSemi();
       return std::nullopt;
     }
@@ -609,7 +607,7 @@ private:
       clause.m_loc = SourceRange(start, LocEnd(semi_tok));
       return clause;
     }
-    EmitError(Current(), "expected ';' after assigns \\nothing");
+    EmitError(Current(), diag::err_ecsl_expected_semi_after_assigns);
     SkipToSemi();
     return std::nullopt;
   }
@@ -665,8 +663,7 @@ std::optional<ECSLFunctionContract> ECSLParserImpl::ParseFunctionContract() {
       break;
 
     // Unexpected token at clause position — emit a diagnostic and skip.
-    EmitError(Current(),
-              "expected 'requires', 'ensures', or 'assigns' at clause start");
+    EmitError(Current(), diag::err_ecsl_unexpected_clause_token);
     SkipToSemi();
   }
 

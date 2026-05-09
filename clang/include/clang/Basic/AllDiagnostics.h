@@ -19,6 +19,7 @@
 #include "clang/Basic/DiagnosticComment.h"
 #include "clang/Basic/DiagnosticCrossTU.h"
 #include "clang/Basic/DiagnosticDriver.h"
+#include "clang/Basic/DiagnosticECSL.h"
 #include "clang/Basic/DiagnosticFrontend.h"
 #include "clang/Basic/DiagnosticInstallAPI.h"
 #include "clang/Basic/DiagnosticLex.h"
