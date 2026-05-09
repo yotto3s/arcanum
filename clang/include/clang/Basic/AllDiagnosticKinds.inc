@@ -31,4 +31,5 @@
 #include "clang/Basic/DiagnosticRefactoringKinds.inc"
 #include "clang/Basic/DiagnosticInstallAPIKinds.inc"
 #include "clang/Basic/DiagnosticTrapKinds.inc"
+#include "clang/Basic/DiagnosticECSLKinds.inc"
 // clang-format on

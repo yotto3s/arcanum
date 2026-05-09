@@ -141,6 +141,7 @@ VALIDATE_DIAG_SIZE(ANALYSIS)
 VALIDATE_DIAG_SIZE(REFACTORING)
 VALIDATE_DIAG_SIZE(INSTALLAPI)
 VALIDATE_DIAG_SIZE(TRAP)
+VALIDATE_DIAG_SIZE(ECSL)
 #undef VALIDATE_DIAG_SIZE
 #undef STRINGIFY_NAME
 
@@ -174,6 +175,7 @@ const StaticDiagInfoRec StaticDiagInfo[] = {
 #include "clang/Basic/DiagnosticRefactoringKinds.inc"
 #include "clang/Basic/DiagnosticInstallAPIKinds.inc"
 #include "clang/Basic/DiagnosticTrapKinds.inc"
+#include "clang/Basic/DiagnosticECSLKinds.inc"
 // clang-format on
 #undef DIAG
 };
@@ -218,6 +220,7 @@ CATEGORY(ANALYSIS, SEMA)
 CATEGORY(REFACTORING, ANALYSIS)
 CATEGORY(INSTALLAPI, REFACTORING)
 CATEGORY(TRAP, INSTALLAPI)
+CATEGORY(ECSL, TRAP)
 #undef CATEGORY
 
   // Avoid out of bounds reads.
