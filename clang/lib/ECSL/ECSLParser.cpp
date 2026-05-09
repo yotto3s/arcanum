@@ -718,16 +718,15 @@ std::unique_ptr<ECSLExpr> ECSLParser::ParseExpr(llvm::StringRef Text,
 // ---------------------------------------------------------------------------
 
 PendingAnnotation ecsl::parseECSLAnnotation(PendingAnnotation PA) {
+  // ECSLCommentHandler always sets Loc = Range.getBegin(), which is valid for
+  // every comment token the Preprocessor produces.  An invalid Loc here means
+  // a PendingAnnotation was constructed synthetically outside of normal
+  // compilation (e.g. a unit test) — that is a caller bug.
+  assert(PA.Loc.isValid() &&
+         "parseECSLAnnotation: PendingAnnotation.Loc must be valid; "
+         "ECSLCommentHandler always produces valid locations");
   ECSLParser parser;
-  SourceLocation body_loc = PA.Loc;
-  if (body_loc.isValid()) {
-    body_loc = body_loc.getLocWithOffset(3);
-  } else {
-    // No real location info; use a synthetic valid location so that
-    // ParseFunctionContract's assert is satisfied while leaving all
-    // SourceRanges meaningless-but-valid.
-    body_loc = SourceLocation::getFromRawEncoding(1);
-  }
+  SourceLocation body_loc = PA.Loc.getLocWithOffset(3);
   parser.ParseFunctionContract(PA.Body, body_loc);
   return PA;
 }
